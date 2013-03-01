@@ -4,8 +4,8 @@ fileNameRoot="MultipleLogisticRegressionJags" # for constructing output filename
 if ( .Platform$OS.type != "windows" ) {
   windows <- function( ... ) X11( ... )
 }
-require(rjags)         # Kruschke, J. K. (2011). Doing Bayesian Data Analysis:
-                       # A Tutorial with R and BUGS. Academic Press / Elsevier.
+require(rjags)
+
 #------------------------------------------------------------------------------
 # THE MODEL.
 modelstring = "
@@ -25,63 +25,24 @@ writeLines(modelstring,con="model.txt")
 #------------------------------------------------------------------------------
 # THE DATA.
 
-dataSource = c( "HtWt" , "Cars" , "HeartAttack" , "Simple" )[4]
-
-if ( dataSource == "HtWt" ) {
-  fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
-  # Generate random but realistic data:
-  source( "HtWtDataGenerator.R" )
-  dataMat = HtWtDataGenerator( nSubj = 70 , rndsd=474 )
-  predictedName = "male"
-  predictorNames = c( "height" , "weight" )
-  nData = NROW( dataMat )
-  y = as.matrix( dataMat[,predictedName] )
-  x = as.matrix( dataMat[,predictorNames] )
-  nPredictors = NCOL( x )
-}
-
-if ( dataSource == "Cars" ) {
-  fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
-  dataMat = read.table(file="Lock1993data.txt",header=T,sep=" ")
-  predictedName = "AirBag"
-  predictorNames = c( "MidPrice" , "RPM" , "Uturn" )
-  nData = NROW( dataMat )
-  y = as.matrix( as.numeric( dataMat[,predictedName] > 0 ) ) # 0,1,2 to 0,1
-  x = as.matrix( dataMat[,predictorNames] )
-  nPredictors = NCOL( x )
-}
-
-## if ( dataSource == "HeartAttack" ) {
-##   fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
-##   dataMat = read.table(file="BloodDataGeneratorOutput.txt",header=T,sep=" ")
-##   predictedName = "HeartAttack"
-##   predictorNames = c( "Systolic", "Diastolic", "Weight", "Cholesterol",
-##                       "Height", "Age" )
-## #  predictorNames = c( "Systolic", "Diastolic" )
-##   nData = NROW( dataMat )
-##   y = as.matrix( dataMat[,predictedName] )
-##   x = as.matrix( dataMat[,predictorNames] )
-##   nPredictors = NCOL( x )
-## }
-
-if ( dataSource == "HeartAttack" ) {
-  fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
-  source( "BloodDataGenerator.R" )
-  dataMat = read.table(file="BloodDataGeneratorOutput.txt",header=T,sep=" ")
-  predictedName = "HeartAttack"
-  ## predictorNames = c( "Systolic", "Diastolic" )
-  predictorNames = c( "Systolic" )
-  nData = NROW( dataMat )
-  y = as.matrix( dataMat[,predictedName] )
-  x = as.matrix( dataMat[,predictorNames] )
-  nPredictors = NCOL( x )
-}
+dataSource = c( "Simple" , "Training" )[2]
 
 if ( dataSource == "Simple" ) {
   fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
   dataMat = read.table(file="SimpleLog.txt",header=T,sep=" ")
   predictedName = "Y"
   predictorNames = c( "X" )
+  nData = NROW( dataMat )
+  y = as.matrix( dataMat[,predictedName] )
+  x = as.matrix( dataMat[,predictorNames] )
+  nPredictors = NCOL( x )
+}
+
+if ( dataSource == "Training" ) {
+  fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
+  dataMat = read.table(file="projections.txt",header=T,sep=" ")
+  predictedName = "Is_Whale?"
+  predictorNames = c( "Projected_Spectrogram" )
   nData = NROW( dataMat )
   y = as.matrix( dataMat[,predictedName] )
   x = as.matrix( dataMat[,predictorNames] )
@@ -104,7 +65,7 @@ zy = y  # y is not standardized; must be 0,1
 
 dataList = list(
            x = zx ,
-           y = as.vector( zy ) , # BUGS does not treat 1-column mat as vector
+           y = as.vector( zy ) , # JAGS does not treat 1-column mat as vector(?)
            nPredictors = nPredictors ,
            nData = nData
 )
@@ -126,8 +87,7 @@ parameters = c( "b0" , "b" )  # The parameter(s) to be monitored.
 adaptSteps = 1000              # Number of steps to "tune" the samplers.
 burnInSteps = 2000            # Number of steps to "burn-in" the samplers.
 nChains = 3                   # Number of chains to run.
-## numSavedSteps=50000           # Total number of steps in chains to save.
-numSavedSteps=5000           # Total number of steps in chains to save.
+numSavedSteps=50000           # Total number of steps in chains to save.
 thinSteps=1                   # Number of steps to "thin" (1=keep every step).
 nPerChain = ceiling( ( numSavedSteps * thinSteps ) / nChains ) # Steps per chain.
 # Create, initialize, and adapt the model:
