@@ -40,8 +40,8 @@ if ( dataSource == "Simple" ) {
 
 if ( dataSource == "Training" ) {
   fileNameRoot = paste( fileNameRoot , dataSource , sep="" )
-  dataMat = read.table(file="projections.txt",header=T,sep=" ")
-  predictedName = "Is_Whale?"
+  dataMat = read.table(file="/Users/dom/Dropbox/Private/Whales/projections.txt",header=T,sep=" ")
+  predictedName = "Is_Whale"
   predictorNames = c( "Projected_Spectrogram" )
   nData = NROW( dataMat )
   y = as.matrix( dataMat[,predictedName] )
@@ -84,7 +84,7 @@ initsList =  list( b0 = b0Init , b = bInit )
 # RUN THE CHAINS
 
 parameters = c( "b0" , "b" )  # The parameter(s) to be monitored.
-adaptSteps = 1000              # Number of steps to "tune" the samplers.
+adaptSteps = 1000             # Number of steps to "tune" the samplers.
 burnInSteps = 2000            # Number of steps to "burn-in" the samplers.
 nChains = 3                   # Number of chains to run.
 numSavedSteps=50000           # Total number of steps in chains to save.
@@ -222,8 +222,12 @@ show( glmRes )
 
 library(ROCR)
 
+## predict = function( x ) {
+##     exp(0.767 * x - 4.26) / (1 + exp(0.767 * x - 4.26))
+## }
+
 predict = function( x ) {
-    exp(0.767 * x - 4.26) / (1 + exp(0.767 * x - 4.26))
+    exp(0.685 * x - 3.04) / (1 + exp(0.685 * x - 3.04))
 }
 
 pred = prediction(sapply(x, predict), y)
@@ -231,3 +235,10 @@ auc.tmp = performance(pred,"auc")
 auc = as.numeric(auc.tmp@y.values)
 perf <- performance(pred,"tpr","fpr")
 plot(perf)
+
+testMat = read.table(file="/Users/dom/Dropbox/Private/Whales/testDist.txt")
+testPred = sapply(array(data=unlist(testMat)), predict)
+
+write.table(testPred, file = "testPred.csv", sep = ",",
+            row.names = FALSE, col.names = FALSE,
+            qmethod = "double")

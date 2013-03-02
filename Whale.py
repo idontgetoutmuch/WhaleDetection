@@ -12,6 +12,8 @@ training_cases = {}
 whale_cases = []
 no_whale_cases = []
 
+test_cases=[i for i in range(1,54504)]
+
 with open("%s/data/train.csv"%WHALE_HOME, 'r') as csvfile:
     label_reader = csv.reader(csvfile)
     label_reader.next() # drop the headings
@@ -34,28 +36,28 @@ def load_aiff(filename):
     # MSB ordering, but numpy assumes LSB ordering.
     return np.fromstring(snd_string, dtype=np.uint16).byteswap()
 
-def get_training_case(n, normalised=True):
-    if n < 0 or n >= 30000:
-        raise ValueError("training case out of range: %d" % n)
+def get_training_case(n, normalised=True, training=True):
+    if training:
+        if n < 0 or n >= 30000:
+            raise ValueError("training case out of range: %d" % n)
+        else:
+            filename = "%s/data/train/%s" % (WHALE_HOME, training_cases[n][0])
+            s = load_aiff(filename)
+            if normalised:
+                s = s/float(np.max(np.abs(s)))
+                return s
     else:
-        filename = "%s/data/train/%s" % (WHALE_HOME, training_cases[n][0])
-        s = load_aiff(filename)
-        if normalised:
-            s = s/float(np.max(np.abs(s)))
-        return s
+        if n < 1 or n > 54503:
+            raise ValueError("submission case out of range: %d" % n)
+        else:
+            filename = "%s/data/test/test%s.aiff" % (WHALE_HOME, test_cases[n-1])
+            s = load_aiff(filename)
+            if normalised:
+                s = s/float(np.max(np.abs(s)))
+                return s
 
-def get_test_case(n, normalised=True):
-    if n < 0 or n >= 54503:
-        raise ValueError("submission case out of range: %d" % n)
-    else:
-        filename = "%s/data/test/%s" % (WHALE_HOME, test_cases[n][0])
-        s = load_aiff(filename)
-        if normalised:
-            s = s/float(np.max(np.abs(s)))
-        return s
-
-def get_spectrogram(n):
-    data = get_training_case(n)
+def get_spectrogram(n, training=True):
+    data = get_training_case(n, True, training)
     s,f,t = long_specgram(data)
     return s
 
@@ -98,11 +100,11 @@ def calculate_mean_over_class(cases=None, load_function=get_spectrogram):
 
     return mean_data
 
-def translate_and_project_onto_vector(cases, t_vec, p_vec, load_function=get_spectrogram):
+def translate_and_project_onto_vector(cases, t_vec, p_vec, load_function=get_spectrogram, training=True):
     t_vec = t_vec.flatten()
     p_vec = p_vec.flatten()
     mag = np.sqrt(np.dot(p_vec, p_vec))
 
-    return [ np.dot(load_function(n).flatten() \
+    return [ np.dot(load_function(n, training).flatten() \
                         - t_vec, p_vec)/mag for n in cases]
 
