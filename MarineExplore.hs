@@ -4,6 +4,7 @@ module MarineExplore
   ( Image(..)
   , normalisedData
   , readImages
+  , readImages'
   , readLabels
   , readLabels'
   , toMatrix
@@ -14,7 +15,8 @@ import qualified Data.ByteString as B
 import Data.Binary.Get
 import Data.Word
 import qualified Data.List.Split as S
-import Numeric.LinearAlgebra
+import Numeric.LinearAlgebra hiding ((<.>))
+import System.FilePath
 
 data Image = Image {
       iRows :: Int
@@ -103,3 +105,19 @@ readImages filename = do
   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
 
+readImages' :: FilePath -> [Int] -> IO [Image]
+readImages' fileName is =
+  mapM (\i -> readImage $ fileName </> ("MNIST" ++ show i) <.> "txt") is
+
+readImage :: FilePath -> IO Image
+readImage fileName = do
+  putStrLn fileName
+  content <- readFile fileName
+  let rows = lines content
+      pixelss :: [[Word8]]
+      pixelss = map (\l -> map read $ S.splitOn " " l) rows
+  return $
+    Image { iRows    = length rows
+          , iColumns = length $ head pixelss
+          , iPixels  = concat pixelss
+          }

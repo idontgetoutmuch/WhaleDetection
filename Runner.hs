@@ -1,16 +1,20 @@
-module Runner where
+{-# OPTIONS_GHC -Wall                    #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
+module Runner
+  ( readLabels
+  , readTrainingData
+  , trainWithAllPatterns
+  , readTestData
+  , evalAllPatterns
+  ) where
 
 import NeuralNet
 import MarineExplore
-import Backprop
 
-import Numeric.LinearAlgebra
 import Data.List
 import Data.Maybe
-import System.Random
-import Debug.Trace
-
-
 
 targets :: [[Double]]
 targets =
@@ -26,24 +30,6 @@ targets =
       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1]
       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9]
     ]
-
-
-{-
-targets :: [[Double]]
-targets =
-    [
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-    ]
--}
 
 interpret :: [Double] -> Int
 interpret v = fromJust (elemIndex (maximum v) v)
@@ -92,31 +78,15 @@ evalAllPatterns
   -> [Int]
 evalAllPatterns = map . evalOnePattern
 
-readTrainingData' :: IO [LabelledImage]
-readTrainingData' = do
-  putStrLn "Reading training labels..."
-  trainingLabels <- readLabels' "data/trainForHaskell.csv"
-
-  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
-  putStrLn "Reading training images..."
-  error "Stop here for now"
-  trainingImages <- readImages "train-images-idx3-ubyte"
-  putStrLn $ show $ head trainingImages
-  error $ show $ length $ iPixels $ head trainingImages
---  putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
-  return [] -- (zip (map normalisedData trainingImages) trainingLabels)
-
 readTrainingData :: IO [LabelledImage]
 readTrainingData = do
---  putStrLn "Reading training labels..."
-  trainingLabels <- readLabels "train-labels-idx1-ubyte"
---  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
---  putStrLn "Reading training images..."
-  trainingImages <- readImages "train-images-idx3-ubyte"
-  putStrLn $ show $ head trainingImages
-  error $ show $ length $ iPixels $ head trainingImages
---  putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
-  return (zip (map normalisedData trainingImages) trainingLabels)
+  putStrLn "Reading training labels..."
+  trainingLabels <- readLabels' "data/trainForHaskell.csv"
+  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
+  putStrLn "Reading training images..."
+  trainingImages <- readImages' "data/train" (map fst trainingLabels)
+  putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
+  return $ zip (map normalisedData trainingImages) (map snd trainingLabels)
 
 readTestData :: IO [LabelledImage]
 readTestData = do
