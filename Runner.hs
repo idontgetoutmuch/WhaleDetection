@@ -1,7 +1,7 @@
 module Runner where
 
 import NeuralNet
-import Mnist
+import MarineExplore
 import Backprop
 
 import Numeric.LinearAlgebra
@@ -92,6 +92,19 @@ evalAllPatterns
   -> [Int]
 evalAllPatterns = map . evalOnePattern
 
+readTrainingData' :: IO [LabelledImage]
+readTrainingData' = do
+  putStrLn "Reading training labels..."
+  trainingLabels <- readLabels' "data/trainForHaskell.csv"
+
+  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
+  putStrLn "Reading training images..."
+  error "Stop here for now"
+  trainingImages <- readImages "train-images-idx3-ubyte"
+  putStrLn $ show $ head trainingImages
+  error $ show $ length $ iPixels $ head trainingImages
+--  putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
+  return [] -- (zip (map normalisedData trainingImages) trainingLabels)
 
 readTrainingData :: IO [LabelledImage]
 readTrainingData = do
