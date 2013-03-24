@@ -1,15 +1,20 @@
-{- OPTIONS_GHC -Wall                    #-}
-{- OPTIONS_GHC -fno-warn-name-shadowing #-}
-{- OPTIONS_GHC -fno-warn-type-defaults  #-}
+{-# OPTIONS_GHC -Wall                    #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
-module Backprop
-  (BackpropNet, buildBackpropNet, logisticSigmoidAS, tanhAS, identityAS)
-    where
+module Backprop (
+    BackpropNet
+  , buildBackpropNet
+  , logisticSigmoidAS
+  , tanhAS
+  , identityAS
+  , prop_trainingReducesFinalLayerError
+  , prop_trainingReducesHiddenLayerError
+  , prop_trainingOneLayerWithOneInputYieldsPerfection
+  ) where
 
 import MatrixPlus as P
 import NeuralNet
-
---- {{{ Layers
 
 import Numeric.LinearAlgebra as N
 import Test.QuickCheck
@@ -58,10 +63,6 @@ inputWidth = cols . lW
 outputWidth :: Layer -> Int
 outputWidth = rows . lW
 
--- }}}
-
--- {{{ Propagation
-
 -- | An individual layer in a neural network, after propagation but prior to backpropagation
 data PropagatedLayer
     = PropagatedLayer
@@ -91,44 +92,6 @@ instance Show PropagatedLayer where
         ++ ", w=" ++ show w
         ++ ", " ++ show s
     show (PropagatedSensorLayer x) = "out=" ++ show x
-
-    -- {{{ Testing
-
-{-
--- | Generate a propagated hidden or output layer of the specified "size", with arbitrary values.
--- | To see sample values (of "size" 4), in GHCi type: sample (sizedArbPropagatedLayer 4)
-sizedArbPropagatedLayer :: Int -> Gen PropagatedLayer
-sizedArbPropagatedLayer n = do
-    -- QuickCheck passes a value n >= 0, but we can't create a vector of length 0, so use n+1
-    r <- choose(1, n+1)
-    c <- choose(1, n+1)
-    w <- sizedArbWeightMatrix r c
-    y <- sizedArbColumnVector r
-    return PropagatedLayer{ pOut=y
-                          , pF'a=(zeroColumnVector r)
-                          , pW=w
-                          , pF=id
-                          , pF'=id'
-                          }
-
--- | Generate a propagated sensor layer of the specified "size", with arbitrary values.
--- | To see sample values (of "size" 4), in GHCi type: sample (sizedArbPropagatedLayer2 4)
-sizedArbPropagatedLayer0 :: Int -> Gen PropagatedLayer
-sizedArbPropagatedLayer0 n = do
-    -- QuickCheck passes a value n >= 0, but we can't create a vector of length 0, so use n+1
-    r <- choose(1, n+1)
-    y <- sizedArbColumnVector r
-    return PropagatedSensorLayer{ pOut=y }
-
-
--- | Generate a propagated layer of arbitrary "size", with arbitrary values.
--- | To see some sample values, in GHCi type: sample' arbitrary :: IO [PropagatedLayer]
-instance Arbitrary PropagatedLayer where
-    arbitrary = frequency
-        [ (4, sized sizedArbPropagatedLayer)
-        , (1, sized sizedArbPropagatedLayer0) ]
--}
-    -- }}}
 
 -- | Propagate the inputs through this layer to produce an output.
 propagate :: PropagatedLayer -> Layer -> PropagatedLayer
@@ -219,11 +182,7 @@ backpropagate layerJ layerK = BackpropagatedLayer
           f'aK = bpF'a layerK
           f'aJ = pF'a layerJ
 
-
--- }}}
-
--- {{{ Adjusting weights after backpropagation
-
+-- | Adjusting weights after backpropagation
 update :: Double -> BackpropagatedLayer -> Layer
 update rate layer = Layer
         {
@@ -234,10 +193,7 @@ update rate layer = Layer
           delW = rate `scale` bpErrGrad layer
           wNew = wOld - delW
 
--- }}}
-
--- {{{ Building a network
-
+-- | Building a network
 data BackpropNet = BackpropNet
     {
       layers :: [Layer],
@@ -299,10 +255,7 @@ backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
   where hiddenLayers = init layers
         layerL = backpropagateFinalLayer (last layers) target
 
--- }}}
-
--- {{{ Define BackpropNet to be an instance of Neural Net
-
+-- | Define BackpropNet to be an instance of Neural Net
 instance NeuralNet BackpropNet where
   evaluate = evaluateBPN
   train = trainBPN
@@ -319,10 +272,6 @@ trainBPN net input target = BackpropNet { layers=newLayers, learningRate=rate }
         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
         propagatedLayers = propagateNet x net
         x = listToColumnVector (1:input)
-
--- }}}
-
--- {{{ General Testing
 
 -- | A layer with suitable input and target vectors, suitable for testing.
 data LayerTestData = LTD (ColumnVector Double) Layer (ColumnVector Double)
@@ -360,6 +309,11 @@ prop_trainingReducesFinalLayerError (LTD x l t) =
               plNew = propagate pl0 lNew
               errorAfter =  P.magnitude (t - pOut plNew)
 
+iterateTraining :: Int
+                   -> PropagatedLayer
+                   -> Double
+                   -> LayerTestData
+                   -> ColumnVector Double
 iterateTraining n pl0 r ltd = pOut plFinal
     where iterations = iterate (trainOneLayer pl0 r) ltd
           (LTD _ lFinal _) = last (take n iterations)
@@ -433,10 +387,7 @@ classifyRange :: Testable a => String -> Int -> Int -> Int -> a -> Property
 classifyRange s n n0 n1 =
     classify (n >= n0 && n <= n1) (s ++ show n0 ++ ".." ++ show n1)
 
--- }}}
-
--- {{{ Common activation functions
-
+-- | Common activation functions
 data ActivationSpec = ActivationSpec
     {
       asF :: Double -> Double,
@@ -447,6 +398,7 @@ data ActivationSpec = ActivationSpec
 instance Show ActivationSpec where
     show = desc
 
+identityAS :: ActivationSpec
 identityAS = ActivationSpec
     {
       asF = id,
@@ -462,13 +414,7 @@ logisticSigmoidAS c = ActivationSpec
         desc = "logistic sigmoid, c=" ++ show c
     }
 
-arbitraryLogisticAS :: Gen ActivationSpec
-arbitraryLogisticAS = do
-    c <- choose(0,1) -- TODO Can it be > 1?
-    return (logisticSigmoidAS c)
-
 instance Arbitrary ActivationSpec where
---    arbitrary = oneof [ return identityAS, arbitraryLogisticAS ]
     arbitrary = return identityAS
 
 logisticSigmoid :: (Field a, Floating a) => a -> a -> a
@@ -487,7 +433,6 @@ tanhAS = ActivationSpec
       desc = "tanh"
     }
 
+tanh' :: Double -> Double
 tanh' x = 1 - (tanh x)^2
-
--- }}}
 
