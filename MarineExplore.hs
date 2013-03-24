@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wall                    #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module MarineExplore
@@ -11,12 +15,12 @@ module MarineExplore
   )  where
 
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString as B
 import Data.Binary.Get
 import Data.Word
 import qualified Data.List.Split as S
 import Numeric.LinearAlgebra hiding ((<.>))
 import System.FilePath
+import System.IO
 
 data Image = Image {
       iRows :: Int
@@ -110,14 +114,16 @@ readImages' fileName is =
   mapM (\i -> readImage $ fileName </> ("MNIST" ++ show i) <.> "txt") is
 
 readImage :: FilePath -> IO Image
-readImage fileName = do
-  putStrLn fileName
-  content <- readFile fileName
-  let rows = lines content
-      pixelss :: [[Word8]]
-      pixelss = map (\l -> map read $ S.splitOn " " l) rows
-  return $
-    Image { iRows    = length rows
-          , iColumns = length $ head pixelss
-          , iPixels  = concat pixelss
-          }
+readImage fileName =
+  withFile fileName ReadMode
+    (\h -> do putStrLn fileName
+              content <- hGetContents h
+              let rows = lines content
+                  pixelss :: [[Word8]]
+                  pixelss = map (\l -> map read $ S.splitOn " " l) rows
+              return $
+                Image { iRows    = length rows
+                      , iColumns = length $ head pixelss
+                      , iPixels  = concat pixelss
+                      }
+    )
