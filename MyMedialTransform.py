@@ -52,14 +52,3 @@ plt.subplots_adjust(hspace=0.01, wspace=0.01, top=1, bottom=0, left=0,
                     right=1)
 plt.show()
 
-def get_lower(ttuple):
-    p0, p1 = ttuple
-    x0, y0 = p0
-    x1, y1 = p1
-    new_ttuple = ttuple if y0 < y1 else (p1, p0)
-    return new_ttuple;
-
-sorted_lines = sorted(map(get_lower, lines), key=lambda line: line[0][1])
-output = open('data.pkl', 'wb')
-pickle.dump(sorted_lines, output)
-output.close()
