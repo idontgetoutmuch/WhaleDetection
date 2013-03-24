@@ -19,14 +19,6 @@ toMatrix image = (r><c) p :: Matrix Double
         c = iColumns image
         p = map fromIntegral (iPixels image)
 
-{-
-toColumnVector :: Image -> Matrix Double
-toColumnVector i = (r><1) q :: Matrix Double
-  where r = Mnist.rows i * Mnist.columns i
-        p = map fromIntegral (pixels i)
-        q = map normalise p
--}
-
 normalisedData :: Image -> [Double]
 normalisedData image = map normalisePixel (iPixels image)
 
