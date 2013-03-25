@@ -63,7 +63,7 @@ with open("%s/data/train.csv"%WHALE_HOME, 'r') as csvfile:
         else:
             no_whale_cases.append(index)
 
-for n in range(1, 1001):
+for n in range(1, 30001):
     fn = 'data/train/MNIST%d.txt' % n
     with open(fn, "w") as output:
         mns = to_MNIST(n)

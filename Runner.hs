@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
 module Runner
-  ( readLabels
+  ( readLabels'
   , readTrainingData
   , trainWithAllPatterns
   , readTestData
@@ -15,6 +15,10 @@ import MarineExplore
 
 import Data.List
 import Data.Maybe
+
+import Control.Applicative
+
+import Debug.Trace
 
 targets :: [[Double]]
 targets =
@@ -30,6 +34,13 @@ targets =
       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1]
       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9]
     ]
+
+-- targets :: [[Double]]
+-- targets =
+--     [
+--         [0.9, 0.1]
+--       , [0.1, 0.9]
+--     ]
 
 interpret :: [Double] -> Int
 interpret v = fromJust (elemIndex (maximum v) v)
@@ -65,7 +76,7 @@ evalOnePattern
   => n
   -> LabelledImage
   -> Int
-evalOnePattern net trainingData = isMatch result target
+evalOnePattern net trainingData = trace (show target ++ ":\n" ++ show rawResult) $ isMatch result target
   where input = fst trainingData
         target = snd trainingData
         rawResult = evaluate net input
@@ -81,7 +92,7 @@ evalAllPatterns = map . evalOnePattern
 readTrainingData :: IO [LabelledImage]
 readTrainingData = do
   putStrLn "Reading training labels..."
-  trainingLabels <- readLabels' "data/trainForHaskell.csv"
+  trainingLabels <- take 3200 <$> readLabels' "data/trainForHaskell.csv"
   putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
   putStrLn "Reading training images..."
   trainingImages <- readImages' "data/train" (map fst trainingLabels)
@@ -91,12 +102,11 @@ readTrainingData = do
 readTestData :: IO [LabelledImage]
 readTestData = do
   putStrLn "Reading test labels..."
-  testLabels <- readLabels "t10k-labels-idx1-ubyte"
-  putStrLn $ show $ take 10 testLabels
---  putStrLn $ "Read " ++ show (length testLabels) ++ " labels"
---  putStrLn "Reading test images..."
-  testImages <- readImages "t10k-images-idx3-ubyte"
---  putStrLn $ "Read " ++ show (length testImages) ++ " images"
---  putStrLn "Testing..."
-  return (zip (map normalisedData testImages) testLabels)
+  testLabels <- take 3200 <$> readLabels' "data/trainForHaskell.csv"
+  putStrLn $ "Read " ++ show (length testLabels) ++ " labels"
+  putStrLn "Reading test images..."
+  testImages <- readImages' "data/train" (map fst testLabels)
+  putStrLn $ "Read " ++ show (length testImages) ++ " images"
+  putStrLn "Testing..."
+  return $ zip (map normalisedData testImages) (map snd testLabels)
 
