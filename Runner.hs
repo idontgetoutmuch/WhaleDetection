@@ -20,27 +20,13 @@ import Control.Applicative
 
 import Debug.Trace
 
+
 targets :: [[Double]]
 targets =
     [
-        [0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1]
-      , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9]
+        [0.9, 0.1]
+      , [0.1, 0.9]
     ]
-
--- targets :: [[Double]]
--- targets =
---     [
---         [0.9, 0.1]
---       , [0.1, 0.9]
---     ]
 
 interpret :: [Double] -> Int
 interpret v = fromJust (elemIndex (maximum v) v)
@@ -57,12 +43,12 @@ type LabelledImage = ([Double], Int)
 trainOnePattern
   :: (NeuralNet n)
   => LabelledImage
-  -> n     
-  -> n     
+  -> n
+  -> n
 trainOnePattern trainingData net = train net input target
   where input = fst trainingData
-        digit = snd trainingData                         
-        target = targets !! digit                        
+        digit = snd trainingData
+        target = targets !! digit
 
 trainWithAllPatterns
   :: (NeuralNet n)
@@ -76,7 +62,9 @@ evalOnePattern
   => n
   -> LabelledImage
   -> Int
-evalOnePattern net trainingData = trace (show target ++ ":\n" ++ show rawResult) $ isMatch result target
+evalOnePattern net trainingData = trace (show input ++ "\n" ++
+                                         show target ++ "\n" ++
+                                         show rawResult) $ isMatch result target
   where input = fst trainingData
         target = snd trainingData
         rawResult = evaluate net input
@@ -92,20 +80,24 @@ evalAllPatterns = map . evalOnePattern
 readTrainingData :: IO [LabelledImage]
 readTrainingData = do
   putStrLn "Reading training labels..."
-  trainingLabels <- take 3200 <$> readLabels' "data/trainForHaskell.csv"
-  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels"
+  -- trainingLabels <- take 2000 <$> readLabels' "data/trainForHaskell.csv"
+  trainingLabels <- take 100 <$> readLabels' "data/HorV.csv"
+  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels" ++ show (take 10 trainingLabels)
   putStrLn "Reading training images..."
-  trainingImages <- readImages' "data/train" (map fst trainingLabels)
+  -- trainingImages <- readImages' "data/train" (map fst trainingLabels)
+  trainingImages <- readImages' "data/check" (map fst trainingLabels)
   putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
   return $ zip (map normalisedData trainingImages) (map snd trainingLabels)
 
 readTestData :: IO [LabelledImage]
 readTestData = do
   putStrLn "Reading test labels..."
-  testLabels <- take 3200 <$> readLabels' "data/trainForHaskell.csv"
+  -- testLabels <- take 2000 <$> readLabels' "data/trainForHaskell.csv"
+  testLabels <- take 100 <$> readLabels' "data/HorV.csv"
   putStrLn $ "Read " ++ show (length testLabels) ++ " labels"
   putStrLn "Reading test images..."
-  testImages <- readImages' "data/train" (map fst testLabels)
+  -- testImages <- readImages' "data/train" (map fst testLabels)
+  testImages <- readImages' "data/check" (map fst testLabels)
   putStrLn $ "Read " ++ show (length testImages) ++ " images"
   putStrLn "Testing..."
   return $ zip (map normalisedData testImages) (map snd testLabels)

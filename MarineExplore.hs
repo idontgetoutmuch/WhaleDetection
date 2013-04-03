@@ -42,14 +42,16 @@ readLabels' fileName = do
   let ncs = map (\x  -> (x!!0, x!!1)) $
             map (S.splitOn ",") $ lines $ csvData
       nns :: [Int]
-      nns =  map read $ map (drop 5) $ map head $ map (S.splitOn ".") $ map fst ncs
+      -- nns =  map read $ map (drop 5) $ map head $ map (S.splitOn ".") $ map fst ncs
+      nns =  map read $ map (drop 4) $ map head $ map (S.splitOn ".") $ map fst ncs
       cs  :: [Int]
       cs = map read $ map snd ncs
   return $ zip nns cs
 
 readImages' :: FilePath -> [Int] -> IO [Image]
 readImages' fileName is =
-  mapM (\i -> readImage $ fileName </> ("MNIST" ++ show i) <.> "txt") is
+  -- mapM (\i -> readImage $ fileName </> ("MNIST" ++ show i) <.> "txt") is
+  mapM (\i -> readImage $ fileName </> ("vorh" ++ show i) <.> "txt") is
 
 readImage :: FilePath -> IO Image
 readImage fileName =
