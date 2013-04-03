@@ -1,24 +1,21 @@
-{-# OPTIONS_GHC -Wall                    #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-{-# OPTIONS_GHC -fno-warn-type-defaults  #-}
-
-module Runner
-  ( readLabels'
-  , readTrainingData
-  , trainWithAllPatterns
+module Runner (
+    readTrainingData
   , readTestData
+  , trainWithAllPatterns
   , evalAllPatterns
+  , LabelledImage(..)
   ) where
 
 import NeuralNet
-import MarineExplore
+import Mnist
+import Backprop
 
+import Numeric.LinearAlgebra
 import Data.List
 import Data.Maybe
-
-import Control.Applicative
-
+import System.Random
 import Debug.Trace
+
 
 
 targets :: [[Double]]
@@ -27,6 +24,39 @@ targets =
         [0.9, 0.1]
       , [0.1, 0.9]
     ]
+
+-- targets :: [[Double]]
+-- targets =
+--     [
+--         [0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9, 0.1]
+--       , [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9]
+--     ]
+
+
+{-
+targets :: [[Double]]
+targets =
+    [
+        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+      , [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    ]
+-}
 
 interpret :: [Double] -> Int
 interpret v = fromJust (elemIndex (maximum v) v)
@@ -55,16 +85,16 @@ trainWithAllPatterns
   => n
   -> [LabelledImage]
   -> n
-trainWithAllPatterns = foldr trainOnePattern
+trainWithAllPatterns = foldl' (flip trainOnePattern)
 
 evalOnePattern
   :: (NeuralNet n)
   => n
   -> LabelledImage
   -> Int
-evalOnePattern net trainingData = trace (show input ++ "\n" ++
-                                         show target ++ "\n" ++
-                                         show rawResult) $ isMatch result target
+evalOnePattern net trainingData =
+  trace (show target ++ ":" ++ show rawResult ++ ":" ++ show result ++ ":" ++ show ((rawResult!!1) / (rawResult!!0))) $
+  isMatch result target
   where input = fst trainingData
         target = snd trainingData
         rawResult = evaluate net input
@@ -77,28 +107,33 @@ evalAllPatterns
   -> [Int]
 evalAllPatterns = map . evalOnePattern
 
-readTrainingData :: IO [LabelledImage]
-readTrainingData = do
-  putStrLn "Reading training labels..."
-  -- trainingLabels <- take 2000 <$> readLabels' "data/trainForHaskell.csv"
-  trainingLabels <- take 100 <$> readLabels' "data/HorV.csv"
-  putStrLn $ "Read " ++ show (length trainingLabels) ++ " labels" ++ show (take 10 trainingLabels)
-  putStrLn "Reading training images..."
-  -- trainingImages <- readImages' "data/train" (map fst trainingLabels)
-  trainingImages <- readImages' "data/check" (map fst trainingLabels)
-  putStrLn $ "Read " ++ show (length trainingImages) ++ " images"
-  return $ zip (map normalisedData trainingImages) (map snd trainingLabels)
+enrich :: [LabelledImage] -> [LabelledImage]
+enrich = concat . unfoldr g
+  where
+    g :: [LabelledImage] -> Maybe ([LabelledImage], [LabelledImage])
+    g [] = Nothing
+    g ((im, l) : lis) | l == 1    = Just (replicate 4 (im, l), lis)
+                      | l == 0    = Just (replicate 1 (im, l), lis)
+                      | otherwise = error $ "Unexpected label: " ++ show l
+
+readTrainingData :: Integer -> Integer -> IO [LabelledImage]
+readTrainingData start end = do
+  trainingLabels <- readLabels "whales-labels-test.mnist"
+  trainingImages <- readImages' "pca-images-train.mnist" start end
+  return $ {- enrich $ -} zip (map normalisedData trainingImages) trainingLabels
 
 readTestData :: IO [LabelledImage]
 readTestData = do
   putStrLn "Reading test labels..."
-  -- testLabels <- take 2000 <$> readLabels' "data/trainForHaskell.csv"
-  testLabels <- take 100 <$> readLabels' "data/HorV.csv"
-  putStrLn $ "Read " ++ show (length testLabels) ++ " labels"
-  putStrLn "Reading test images..."
-  -- testImages <- readImages' "data/train" (map fst testLabels)
-  testImages <- readImages' "data/check" (map fst testLabels)
-  putStrLn $ "Read " ++ show (length testImages) ++ " images"
-  putStrLn "Testing..."
-  return $ zip (map normalisedData testImages) (map snd testLabels)
+--  testLabels <- readLabels "t10k-labels-idx1-ubyte"
+--  testLabels <- readLabels "vert-or-horiz-labels-test.mnist"
+  testLabels <- readLabels "whales-labels-test.mnist"
+--  putStrLn $ "Read " ++ show (length testLabels) ++ " labels"
+--  putStrLn "Reading test images..."
+--  testImages <- readImages "t10k-images-idx3-ubyte"
+--  testImages <- readImages "vert-or-horiz-images-test.mnist"
+  testImages <- readImages "pca-images-train.mnist"
+--  putStrLn $ "Read " ++ show (length testImages) ++ " images"
+--  putStrLn "Testing..."
+  return (zip (map normalisedData testImages) testLabels)
 
