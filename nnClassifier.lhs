@@ -40,51 +40,88 @@ differentiation to this simpler problem.
 Backpropogation
 ---------------
 
+FIXME: For exposition we might have to inline all the modules.
 
-> import MarineExplore
+> import Mnist
 > import Runner
 > import Backprop
-
+>
 > import Numeric.LinearAlgebra
+> import Numeric.AD
 > import Data.List
+> import Data.List.Split
+> import Data.Foldable hiding (sum)
 > import System.Random
 
-> import Numeric.AD
+FIXME: Explain the learning rate and initialisation.
 
-> learningRate = 0.007
-> nRows, nCols :: Int
-> nRows = 9 -- 129
-> nCols = 9 -- 49
+FIXME: We can probably get the number of rows and columns from the
+data itself.
 
+Our neural net configuration. We wish to classify images which are $28
+\times 28$ pixels into 10 digits using a single layer neural net with
+20 nodes.
+
+> lRate :: Double
+> lRate = 0.007
+> nRows, nCols, nNodes, nDigits :: Int
+> nRows = 28
+> nCols = 28
+> nNodes = 20
+> nDigits = 10
+>
 > smallRandoms :: Int -> [Double]
 > smallRandoms seed = map (/100) (randoms (mkStdGen seed))
-
+>
 > randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
 > randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
 >     where weights = take (numOutputs*numInputs) (smallRandoms seed)
-
+>
 > zeroWeightMatrix :: Int -> Int -> Matrix Double
 > zeroWeightMatrix numInputs numOutputs = (numOutputs><numInputs) weights
 >     where weights = repeat 0
 
+FIXME: Fix forcing to use something other than putStrLn.
+
+> myForce :: BackpropNet -> [LabelledImage] -> IO BackpropNet
+> myForce oldNet trainingData = do
+>   let newNet = trainWithAllPatterns oldNet trainingData
+>   putStrLn $ show $ length $ toLists $ lW $ head $ layers newNet
+>   putStrLn $ show $ length $ head $ toLists $ lW $ head $ layers newNet
+>   return newNet
+>
+> update :: (Integer, Integer) -> BackpropNet -> IO BackpropNet
+> update (start, end) oldNet = do
+>   allTrainingData <- readTrainingData start end
+>   myForce oldNet allTrainingData
+>
 > main :: IO ()
 > main = do
->   let w1 = randomWeightMatrix (nRows * nCols + 1) 4 7
->   let w2 = randomWeightMatrix 4 2 42
->   let initialNet = buildBackpropNet learningRate [w1, w2] tanhAS
->   trainingData2 <- readTrainingData
-
--- >   let finalNet = trainWithAllPatterns initialNet (take 1800 trainingData2)
-
->   let finalNet = trainWithAllPatterns initialNet (take 93 trainingData2)
+>   let w1 = randomWeightMatrix (nRows * nCols + 1) nNodes 7
+>   let w2 = randomWeightMatrix nNodes nDigits 42
+>   let initialNet = buildBackpropNet lRate [w1, w2] tanhAS
+>
+>   finalNet <- foldrM update initialNet [ (   0,    999), (1000,   1999)
+>                                        , (2000,   2999), (3000,   3999)
+>                                        , (4000,   4999), (5000,   5999)
+>                                        , (6000,   6999), (7000,   7999)
+>                                        , (8000,   8999), (9000,   9999)
+>                                        , (10000, 10999), (11000, 11999)
+>                                        , (12000, 12999), (13000, 13999)
+>                                        , (14000, 14999), (15000, 15999)
+>                                        , (16000, 16999), (17000, 17999)
+>                                        , (18000, 18999), (19000, 19999)
+>                                        , (20000, 20999), (21000, 21999)
+>                                        , (22000, 22999), (23000, 23999)
+>                                        , (24000, 24999), (25000, 25999)
+>                                        , (26000, 26999), (27000, 27999)
+>                                        ]
+>
 >   testData2 <- readTestData
-
--- >   let results = evalAllPatterns finalNet (take 200 $ drop 1800 testData2)
-
->   let results = evalAllPatterns finalNet (take 7 $ drop 93 testData2)
-
--- >   let expects = map snd $ take 200 $ drop 1800 testData2
-
->   let expects = map snd $ take 7 $ drop 93 testData2
->   putStrLn $ "Score:\n" ++ show results
->   putStrLn $ "Expected:\n" ++ show expects
+>   let testData = take 1000 testData2
+>   putStrLn $ "Testing with " ++ show (length testData) ++ " images"
+>   let results = evalAllPatterns finalNet testData
+>   let score = fromIntegral (sum results)
+>   let count = fromIntegral (length testData)
+>   let percentage = 100.0 * score / count
+>   putStrLn $ "I got " ++ show percentage ++ "% correct"
