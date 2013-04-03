@@ -42,7 +42,7 @@ Backpropogation
 
 FIXME: For exposition we might have to inline all the modules.
 
-> import Mnist
+> import Mnist hiding (Image(..))
 > import Runner
 > import Backprop
 >
@@ -52,6 +52,30 @@ FIXME: For exposition we might have to inline all the modules.
 > import Data.List.Split
 > import Data.Foldable hiding (sum)
 > import System.Random
+
+> import Data.Word
+
+We (or rather the authors of the [MonadReader article][MonadReader])
+represent an image as a reocord; the pixels are represented using an
+8-bit grayscale.
+
+> data Image = Image {
+>       iRows    :: Int
+>     , iColumns :: Int
+>     , iPixels  :: [Word8]
+>     } deriving (Eq, Show)
+>
+> toMatrix :: Image -> Matrix Double
+> toMatrix image = (r><c) p :: Matrix Double
+>   where r = iRows image
+>         c = iColumns image
+>         p = map fromIntegral (iPixels image)
+
+> normalisedData :: Image -> [Double]
+> normalisedData image = map normalisePixel (iPixels image)
+>   where
+>     normalisePixel :: Word8 -> Double
+>     normalisePixel p = (fromIntegral p) / 255.0
 
 FIXME: Explain the learning rate and initialisation.
 
