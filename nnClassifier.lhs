@@ -42,7 +42,6 @@ Backpropogation
 
 FIXME: For exposition we might have to inline all the modules.
 
-> import Mnist hiding (Image(..))
 > import Runner
 > import Backprop
 >
@@ -50,10 +49,15 @@ FIXME: For exposition we might have to inline all the modules.
 > import Numeric.AD
 > import Data.List
 > import Data.List.Split
-> import Data.Foldable hiding (sum)
+> import Data.Foldable (foldrM)
 > import System.Random
 
+For use in the appendix.
+
 > import Data.Word
+> import qualified Data.ByteString.Lazy as BL
+> import Data.Binary.Get
+> import Data.Binary.Put
 
 We (or rather the authors of the [MonadReader article][MonadReader])
 represent an image as a reocord; the pixels are represented using an
@@ -149,3 +153,93 @@ FIXME: Fix forcing to use something other than putStrLn.
 >   let count = fromIntegral (length testData)
 >   let percentage = 100.0 * score / count
 >   putStrLn $ "I got " ++ show percentage ++ "% correct"
+
+Appendix
+--------
+
+> deserialiseLabels :: Get (Word32, Word32, [Word8])
+> deserialiseLabels = do
+>   magicNumber <- getWord32be
+>   count <- getWord32be
+>   labelData <- getRemainingLazyByteString
+>   let labels = BL.unpack labelData
+>   return (magicNumber, count, labels)
+>
+> readLabels :: FilePath -> IO [Int]
+> readLabels filename = do
+>   content <- BL.readFile filename
+>   let (_, _, labels) = runGet deserialiseLabels content
+>   return (map fromIntegral labels)
+>
+> serialiseLabels :: Word32 -> Word32 -> [Word8] -> Put
+> serialiseLabels magicNumber count labels = do
+>   putWord32be magicNumber
+>   putWord32be count
+>   mapM_ putWord8 labels
+>
+> writeLabels :: FilePath -> [Int] -> IO ()
+> writeLabels fileName labels = do
+>   let content = runPut $ serialiseLabels
+>                          0x00000801
+>                          (fromIntegral $ length labels)
+>                          (map fromIntegral labels)
+>   BL.writeFile fileName content
+
+
+> deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
+> deserialiseHeader = do
+>   magicNumber <- getWord32be
+>   imageCount <- getWord32be
+>   r <- getWord32be
+>   c <- getWord32be
+>   packedData <- getRemainingLazyByteString
+>   let len = fromIntegral (r * c)
+>   let unpackedData = chunksOf len (BL.unpack packedData)
+>   return (magicNumber, imageCount, r, c, unpackedData)
+>
+> deserialiseHeader' :: Integer -> Integer -> Get (Word32, Word32, Word32, Word32, [[Word8]])
+> deserialiseHeader' start end = do
+>   magicNumber <- getWord32be
+>   imageCount <- getWord32be
+>   r <- getWord32be
+>   c <- getWord32be
+>   let len = fromIntegral (r * c)
+>   _ <- getLazyByteString (fromIntegral $ len * start)
+>   packedData <- getLazyByteString (fromIntegral $ len * (end - start + 1))
+>   let unpackedData = chunksOf (fromIntegral len) (BL.unpack packedData)
+>   return (magicNumber, imageCount, r, c, unpackedData)
+>
+> readImages :: FilePath -> IO [Image]
+> readImages filename = do
+>   content <- BL.readFile filename
+>   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
+>   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
+>
+> readImages' :: FilePath -> Integer -> Integer -> IO [Image]
+> readImages' filename start end = do
+>   content <- BL.readFile filename
+>   let (_, _, r, c, unpackedData) = runGet (deserialiseHeader' start end) content
+>   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
+>
+> serialiseHeader :: Word32 -> Word32 -> Word32 -> Word32 -> [[Word8]] -> Put
+> serialiseHeader magicNumber imageCount nRows nCols iss = do
+>   putWord32be magicNumber
+>   putWord32be imageCount
+>   putWord32be nRows
+>   putWord32be nCols
+>   mapM_ putWord8 $ concat iss
+>
+> writeImages :: FilePath -> [Image] -> IO ()
+> writeImages fileName is = do
+>   let content = runPut $ serialiseHeader
+>                          0x00000803
+>                          (fromIntegral $ length is)
+>                          (fromIntegral $ iRows $ head is)
+>                          (fromIntegral $ iColumns $ head is)
+>                          (map iPixels is)
+>   BL.writeFile fileName content
+>
+> writeImage :: FilePath -> Image -> IO ()
+> writeImage fileName i = do
+>  let content = runPut $ mapM_ putWord8 $ iPixels i
+>  BL.appendFile fileName content
