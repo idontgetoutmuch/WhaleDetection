@@ -223,8 +223,9 @@ We are also
 given a cost function:
 
 
+FIXME: Explain gradient / steepest descent and learning rate
 
-FIXME: Explain the learning rate and initialisation.
+FIXME: Explain initialisation.
 
 FIXME: We can probably get the number of rows and columns from the
 data itself.
@@ -248,18 +249,53 @@ Our neural net configuration. We wish to classify images which are $28
 > randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
 >     where weights = take (numOutputs*numInputs) (smallRandoms seed)
 
-The meat of the article yet to be explained.
+We represent a layer as record consisting of the matrix of weights and
+the activation function.
 
-> data ActivationSpec = ActivationSpec
+> data Layer =
+>   Layer
+>   {
+>     layerWeights  :: Matrix Double,
+>     layerFunction :: ActivationFunction
+>   }
+
+The activation function itself is a function which takes any type in
+the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
+
+> newtype ActivationFunction =
+>   ActivationFunction
+>   {
+>     activationFunction :: Floating a => a -> a
+>   }
+
+Our neural network consists of a list of layers together with a learning rate.
+
+> data BackpropNet = BackpropNet
 >     {
->       asF :: Floating a => a -> a,
->       desc :: String
+>       layers :: [Layer],
+>       learningRate :: Double
 >     }
 
-FIXME: This is pretty rather than show.
+The constructor function _buildBackPropnet_ does nothing more than
+populate _BackPropNet_ checking that all the matrices of weights are
+compatible.  It takes a learning rate, a list of matrices of weights
+for each layer, a single common activation function and produce a
+neural network.
 
-> instance Show ActivationSpec where
->   show = desc
+> buildBackpropNet ::
+>   Double ->
+>   [Matrix Double] ->
+>   ActivationFunction ->
+>   BackpropNet
+> buildBackpropNet learningRate ws f =
+>   BackpropNet {
+>       layers       = map buildLayer checkedWeights
+>     , learningRate = learningRate
+>     }
+>   where checkedWeights = scanl1 checkDimensions ws
+>         buildLayer w   = Layer { layerWeights  = w
+>                                , layerFunction = f
+>                                }
 
 > -- | An individual layer in a neural network, after propagation but prior to backpropagation
 > data PropagatedLayer
@@ -274,7 +310,7 @@ FIXME: This is pretty rather than show.
 >           -- The weights for this layer
 >           pW :: Matrix Double,
 >           -- The activation specification for this layer
->           pAS :: ActivationSpec
+>           pAS :: ActivationFunction
 >         }
 >     | PropagatedSensorLayer
 >         {
@@ -296,14 +332,14 @@ FIXME: This is pretty rather than show.
 >           pOut = y,
 >           pF'a = f'a,
 >           pW = w,
->           pAS = lAS layerK
+>           pAS = layerFunction layerK
 >         }
 >   where x = pOut layerJ
->         w = lW layerK
+>         w = layerWeights layerK
 >         a = w <> x
->         f = asF ( lAS layerK )
+>         f = activationFunction ( layerFunction layerK )
 >         y = mapMatrix f a
->         f' = diff (asF ( lAS layerK ))
+>         f' = diff (activationFunction ( layerFunction layerK ))
 >         f'a = mapMatrix f' a
 
 > validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
@@ -330,7 +366,7 @@ FIXME: This is pretty rather than show.
 >              ns = toList ( flatten input )
 
 > inputWidth :: Layer -> Int
-> inputWidth = cols . lW
+> inputWidth = cols . layerWeights
 
 
 > -- | An individual layer in a neural network, after backpropagation
@@ -350,7 +386,7 @@ FIXME: This is pretty rather than show.
 >       -- The weights for this layer
 >       bpW :: Matrix Double,
 >       -- The activation specification for this layer
->       bpAS :: ActivationSpec
+>       bpAS :: ActivationFunction
 >     }
 
 > backpropagateNet ::
@@ -378,35 +414,6 @@ FIXME: This is pretty rather than show.
 >     -> ColumnVector Double
 > errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
 
-> -- | An individual layer in a neural network, prior to propagation
-> data Layer = Layer
->     {
->       -- The weights for this layer
->       lW :: Matrix Double,
->       -- The activation specification for this layer
->       lAS :: ActivationSpec
->     } deriving Show
-
-> data BackpropNet = BackpropNet
->     {
->       layers :: [Layer],
->       learningRate :: Double
->     } deriving Show
-
-> buildBackpropNet ::
->   -- The learning rate
->   Double ->
->   -- The weights for each layer
->   [Matrix Double] ->
->   -- The activation specification (used for all layers)
->   ActivationSpec ->
->   -- The network
->   BackpropNet
-> buildBackpropNet lr ws s = BackpropNet { layers=ls, learningRate=lr }
->   where checkedWeights = scanl1 checkDimensions ws
->         ls = map buildLayer checkedWeights
->         buildLayer w = Layer { lW=w, lAS=s }
-
 > -- | Propagate the inputs backward through this layer to produce an output.
 > backpropagate :: PropagatedLayer -> BackpropagatedLayer -> BackpropagatedLayer
 > backpropagate layerJ layerK = BackpropagatedLayer
@@ -428,8 +435,8 @@ FIXME: This is pretty rather than show.
 > update :: Double -> BackpropagatedLayer -> Layer
 > update rate layer = Layer
 >         {
->           lW = wNew,
->           lAS = bpAS layer
+>           layerWeights = wNew,
+>           layerFunction = bpAS layer
 >         }
 >     where wOld = bpW layer
 >           delW = rate `scale` bpErrGrad layer
@@ -477,8 +484,8 @@ FIXME: Fix forcing to use something other than putStrLn.
 > myForce :: BackpropNet -> [LabelledImage] -> IO BackpropNet
 > myForce oldNet trainingData = do
 >   let newNet = trainWithAllPatterns oldNet trainingData
->   putStrLn $ show $ length $ toLists $ lW $ head $ layers newNet
->   putStrLn $ show $ length $ head $ toLists $ lW $ head $ layers newNet
+>   putStrLn $ show $ length $ toLists $ layerWeights $ head $ layers newNet
+>   putStrLn $ show $ length $ head $ toLists $ layerWeights $ head $ layers newNet
 >   return newNet
 >
 > update' :: (Integer, Integer) -> BackpropNet -> IO BackpropNet
@@ -628,11 +635,10 @@ Appendix
 > listToColumnVector x = (len >< 1) x
 >     where len = length x
 
-> tanhAS :: ActivationSpec
-> tanhAS = ActivationSpec
+> tanhAS :: ActivationFunction
+> tanhAS = ActivationFunction
 >     {
->       asF = tanh,
->       desc = "tanh"
+>       activationFunction = tanh
 >     }
 
 > checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
