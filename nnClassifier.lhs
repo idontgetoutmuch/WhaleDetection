@@ -5,6 +5,12 @@
 Introduction
 ------------
 
+Neural networks are a method for classifying data based on a theory of
+how biological systems operate. They can also be viewed as a
+generalization of logistic regression. A method for determining the
+coefficients of a given model, backpropagation, was developed in the
+1970's and rediscovered in the 1980'.
+
 The article "A Functional Approach to Neural Networks" in the [Monad
 Reader][MonadReader] shows how to use a neural network to classify
 handwritten digits in the [MNIST database][MNIST] using backpropagation.
@@ -21,6 +27,11 @@ observes: "the grandaddy machine-learning algorithm of them all,
 back-propagation, is nothing but steepest descent with reverse mode
 automatic differentiation".
 
+Automated differentiation was developed in the 1960's but even now
+does not seem to be that widely used. Even experienced and
+knowledgeable practitioners often assume it is either a finite
+difference method or symbolic computation when it is neither.
+
   [Backpropagation]: http://en.wikipedia.org/wiki/Backpropagation
   [AutomaticDifferentiation]: http://en.wikipedia.org/wiki/Automatic_differentiation
   [Domke2009a]: http://justindomke.wordpress.com/2009/02/17/automatic-differentiation-the-most-criminally-underused-tool-in-the-potential-machine-learning-toolbox/
@@ -32,8 +43,7 @@ simple neural network (a single layer perceptron);
 
 * The second explains the multi-layer perceptron neural network;
 
-* The third summarises how
-backpropagation works;
+* The third summarises how backpropagation works;
 
 * The last shows how backpropagation can be replaced by automated
 differentation. Both techniques are applied to what appears to be the
@@ -42,7 +52,7 @@ standard [benchmark][LeCunCortesMnist] (MNIST).
 Acknowledgements
 ---------------
 
-The authors of the [MonadReader][MonadReader]: by Amy de Buitléir,
+The authors of the [MonadReader][MonadReader]: Amy de Buitléir,
 Michael Russell and Mark Daly.
 
 Multivariate Linear Logistic Regression
