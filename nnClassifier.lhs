@@ -249,6 +249,9 @@ Our neural net configuration. We wish to classify images which are $28
 > randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
 >     where weights = take (numOutputs*numInputs) (smallRandoms seed)
 
+
+The implementation below is a modified version of [MonadLayer].
+
 We represent a layer as record consisting of the matrix of weights and
 the activation function.
 
@@ -296,77 +299,79 @@ neural network.
 >         buildLayer w   = Layer { layerWeights  = w
 >                                , layerFunction = f
 >                                }
+>         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
+>         checkDimensions w1 w2 =
+>           if rows w1 == cols w2
+>           then w2
+>           else error "Inconsistent dimensions in weight matrix"
 
-> -- | An individual layer in a neural network, after propagation but prior to backpropagation
+We keep a record of calculations at each layer in the neural network.
+
 > data PropagatedLayer
 >     = PropagatedLayer
 >         {
->           -- The input to this layer
->           pIn :: ColumnVector Double,
->           -- The output from this layer
->           pOut :: ColumnVector Double,
->           -- The value of the first derivative of the activation function for this layer
->           pF'a :: ColumnVector Double,
->           -- The weights for this layer
->           pW :: Matrix Double,
->           -- The activation specification for this layer
->           pAS :: ActivationFunction
+>           propLayerIn         :: ColumnVector Double,
+>           propLayerOut        :: ColumnVector Double,
+>           propLayerActFun'Val :: ColumnVector Double,
+>           propLayerWeights    :: Matrix Double,
+>           propLayerActFun     :: ActivationFunction
 >         }
 >     | PropagatedSensorLayer
 >         {
->           -- The output from this layer
->           pOut :: ColumnVector Double
+>           propLayerOut :: ColumnVector Double
 >         }
+
+We take a record of the calculations at one layer, a layer and produce
+the record of the calculations at the next layer.
+
+> propagate :: PropagatedLayer -> Layer -> PropagatedLayer
+> propagate layerJ layerK = PropagatedLayer
+>         {
+>           propLayerIn         = layerJOut,
+>           propLayerOut        = mapMatrix f  a,
+>           propLayerActFun'Val = mapMatrix (diff f) a,
+>           propLayerWeights    = weights,
+>           propLayerActFun     = layerFunction layerK
+>         }
+>   where layerJOut = propLayerOut layerJ
+>         weights   = layerWeights layerK
+>         a         = weights <> layerJOut
+>         f :: Floating a => a -> a
+>         f = activationFunction $ layerFunction layerK
+
+With this we can take an input to the neural network, the neural
+network itself and produce a collection of records of the calculations
+at each layer.
 
 > propagateNet :: ColumnVector Double -> BackpropNet -> [PropagatedLayer]
 > propagateNet input net = tail calcs
 >   where calcs = scanl propagate layer0 (layers net)
->         layer0 = PropagatedSensorLayer{ pOut=validatedInputs }
->         validatedInputs = validateInput net input
-
-> -- | Propagate the inputs through this layer to produce an output.
-> propagate :: PropagatedLayer -> Layer -> PropagatedLayer
-> propagate layerJ layerK = PropagatedLayer
->         {
->           pIn = x,
->           pOut = y,
->           pF'a = f'a,
->           pW = w,
->           pAS = layerFunction layerK
->         }
->   where x = pOut layerJ
->         w = layerWeights layerK
->         a = w <> x
->         f = activationFunction ( layerFunction layerK )
->         y = mapMatrix f a
->         f' = diff (activationFunction ( layerFunction layerK ))
->         f'a = mapMatrix f' a
-
-> validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
-> validateInput net = validateInputValues . validateInputDimensions net
+>         layer0 = PropagatedSensorLayer $ validateInput net input
 >
-> validateInputDimensions ::
->     BackpropNet ->
->     ColumnVector Double ->
->     ColumnVector Double
-> validateInputDimensions net input =
->   if got == expected
->        then input
->        else error ("Input pattern has " ++ show got ++ " bits, but " ++ show expected ++ " were expected")
->            where got = rows input
->                  expected = inputWidth (head (layers net))
+>         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
+>         validateInput net = validateInputValues . validateInputDimensions net
 >
-> validateInputValues :: ColumnVector Double -> ColumnVector Double
-> validateInputValues input =
->   if (min >= 0) && (max <= 1)
->        then input
->        else error "Input bits outside of range [0,1]"
->        where min = minimum ns
->              max = maximum ns
->              ns = toList ( flatten input )
-
-> inputWidth :: Layer -> Int
-> inputWidth = cols . layerWeights
+>         validateInputDimensions ::
+>           BackpropNet ->
+>           ColumnVector Double ->
+>           ColumnVector Double
+>         validateInputDimensions net input =
+>           if got == expected
+>           then input
+>           else error ("Input pattern has " ++ show got ++ " bits, but " ++ show expected ++ " were expected")
+>           where got      = rows input
+>                 expected = inputWidth $ head $ layers net
+>
+>         validateInputValues :: ColumnVector Double -> ColumnVector Double
+>         validateInputValues input =
+>           if (minimum ns >= 0) && (maximum ns <= 1)
+>           then input
+>           else error "Input bits outside of range [0,1]"
+>           where
+>             ns = toList ( flatten input )
+>
+>         inputWidth :: Layer -> Int
+>         inputWidth = cols . layerWeights
 
 
 > -- | An individual layer in a neural network, after backpropagation
@@ -400,15 +405,15 @@ neural network.
 > backpropagateFinalLayer l t = BackpropagatedLayer
 >     {
 >       bpDazzle = dazzle,
->       bpErrGrad = errorGrad dazzle f'a (pIn l),
->       bpF'a = pF'a l,
->       bpIn = pIn l,
->       bpOut = pOut l,
->       bpW = pW l,
->       bpAS = pAS l
+>       bpErrGrad = errorGrad dazzle f'a (propLayerIn l),
+>       bpF'a = propLayerActFun'Val l,
+>       bpIn = propLayerIn l,
+>       bpOut = propLayerOut l,
+>       bpW = propLayerWeights l,
+>       bpAS = propLayerActFun l
 >     }
->     where dazzle =  pOut l - t
->           f'a = pF'a l
+>     where dazzle =  propLayerOut l - t
+>           f'a = propLayerActFun'Val l
 
 > errorGrad :: ColumnVector Double -> ColumnVector Double -> ColumnVector Double
 >     -> ColumnVector Double
@@ -419,18 +424,18 @@ neural network.
 > backpropagate layerJ layerK = BackpropagatedLayer
 >     {
 >       bpDazzle = dazzleJ,
->       bpErrGrad = errorGrad dazzleJ f'aJ (pIn layerJ),
->       bpF'a = pF'a layerJ,
->       bpIn = pIn layerJ,
->       bpOut = pOut layerJ,
->       bpW = pW layerJ,
->       bpAS = pAS layerJ
+>       bpErrGrad = errorGrad dazzleJ f'aJ (propLayerIn layerJ),
+>       bpF'a = propLayerActFun'Val layerJ,
+>       bpIn = propLayerIn layerJ,
+>       bpOut = propLayerOut layerJ,
+>       bpW = propLayerWeights layerJ,
+>       bpAS = propLayerActFun layerJ
 >     }
 >     where dazzleJ = wKT <> (dazzleK * f'aK)
 >           dazzleK = bpDazzle layerK
 >           wKT = trans ( bpW layerK )
 >           f'aK = bpF'a layerK
->           f'aJ = pF'a layerJ
+>           f'aJ = propLayerActFun'Val layerJ
 
 > update :: Double -> BackpropagatedLayer -> Layer
 > update rate layer = Layer
@@ -443,7 +448,7 @@ neural network.
 >           wNew = wOld - delW
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList( pOut ( last calcs ))
+> evaluateBPN net input = columnVectorToList( propLayerOut ( last calcs ))
 >   where calcs = propagateNet x net
 >         x = listToColumnVector (1:input)
 >
@@ -640,12 +645,6 @@ Appendix
 >     {
 >       activationFunction = tanh
 >     }
-
-> checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
-> checkDimensions w1 w2 =
->   if rows w1 == cols w2
->        then w2
->        else error "Inconsistent dimensions in weight matrix"
 
 FIXME: Hem hem surely we can generate this automatically
 
