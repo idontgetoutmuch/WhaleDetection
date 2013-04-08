@@ -120,7 +120,8 @@ are extremely important.
 
     background = rect 1.2 1.2 # translate (r2 (0.5, 0.5)) # fc beige # opacity 0.5
 
-Backpropagation
+
+Neural Networks
 ---------------
 
 >
@@ -169,7 +170,7 @@ represented by the value 9.
 We follow [@rojas1996neural;@Bishop:2006:PRM:1162264]. We are given a training set:
 
 $$
-\{(\vec{x}_0, \vec{t}_0), (\vec{x}_1, \vec{t}_1), \ldots, (\vec{x}_p, \vec{t}_p)\}
+\{(\vec{x}_0, \vec{y}_0), (\vec{x}_1, \vec{y}_1), \ldots, (\vec{x}_p, \vec{y}_p)\}
 $$
 
 of pairs of $n$-dimensional and $m$-dimensional vectors called the
@@ -214,18 +215,50 @@ Ultimately after we applied $L-1$ transformations (through $L-1$ hidden
 layers) we produce some output:
 
 \begin{align*}
-a_j^{(L)} &= \sum_{i=1}^{K_{L-1}} w^{(L-1)}_{ij}x_i + w_{0j}^{(L-1)} \\
-y_j       &= f(a_j^{(L)})
+a_j^{(L)}       &= \sum_{i=1}^{K_{L-1}} w^{(L-1)}_{ij}x_i + w_{0j}^{(L-1)} \\
+\hat{y}_j       &= f(a_j^{(L)})
 \end{align*}
 
 
 We are also
 given a cost function:
 
+$$
+E(\vec{x}) = \frac{1}{2}\sum_1^{N_L}(\hat{y}^L_i - y^L_i)^2
+$$
 
-FIXME: Explain gradient / steepest descent and learning rate
+As with logistic regression, our goal is to find weights for the
+neural network which minimises this cost function. The method that is
+used in backpropagation to is to initialise the weights to some small
+non-zero amount and then use the method of steepest descent (aka
+gradient descent). The idea is that if $f$ is a function of several
+variables then to find its minimum value, one ought to take a small
+step in the direction in which it is decreasing most quickly and
+repeat until no step in any direction results in a decrease. The
+analogy is that if one is walking in the mountains then the quickest
+way down is to walk in the direction which goes down most steeply. Of
+course one get stuck at a local minimum rather than the global minimum
+but from a machine learning point of view this may be acceptable;
+alternatively one may start at random points in the search space and
+check they all give the same minimum.
 
-FIXME: Explain initialisation.
+We therefore need calculate the gradient of the loss function with
+respect to the weights (since we need to minimise the cost
+function). In other words we need to find:
+
+$$
+\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
+$$
+
+Once we have this we can take our random starting position and move
+down the steepest gradient:
+
+$$
+w'_i = w_i - \gamma\frac{\partial E}{\partial w_i}
+$$
+
+where $\gamma$ is the step length known in machine learning parlance
+as the learning rate.
 
 FIXME: We can probably get the number of rows and columns from the
 data itself.
@@ -358,7 +391,8 @@ at each layer.
 >         validateInputDimensions net input =
 >           if got == expected
 >           then input
->           else error ("Input pattern has " ++ show got ++ " bits, but " ++ show expected ++ " were expected")
+>           else error ("Input pattern has " ++ show got ++ " bits, but " ++
+>                       show expected ++ " were expected")
 >           where got      = rows input
 >                 expected = inputWidth $ head $ layers net
 >
@@ -374,91 +408,117 @@ at each layer.
 >         inputWidth = cols . layerWeights
 
 
-> -- | An individual layer in a neural network, after backpropagation
+We keep a record of the back propagation calculations at each layer in
+the neural network:
+
+* The grad of the cost function with respect to the outputs of the layer.
+* The grad of the cost function with respect to the weights of the layer.
+* The value of the derivative of the activation function.
+* The inputs to the layer.
+* The outputs from the layer.
+* The activation function.
+
 > data BackpropagatedLayer = BackpropagatedLayer
 >     {
->       -- Del-sub-z-sub-l of E
->       bpDazzle :: ColumnVector Double,
->       -- The error due to this layer
->       bpErrGrad :: ColumnVector Double,
->       -- The value of the first derivative of the activation
->       --   function for this layer
->       bpF'a :: ColumnVector Double,
->       -- The input to this layer
->       bpIn :: ColumnVector Double,
->       -- The output from this layer
->       bpOut :: ColumnVector Double,
->       -- The weights for this layer
->       bpW :: Matrix Double,
->       -- The activation specification for this layer
->       bpAS :: ActivationFunction
+>       backpropOutGrad    :: ColumnVector Double,
+>       backpropWeightGrad :: Matrix Double,
+>       backpropActFun'Val :: ColumnVector Double,
+>       backpropIn         :: ColumnVector Double,
+>       backpropOut        :: ColumnVector Double,
+>       backpropWeights    :: Matrix Double,
+>       backPropActFun     :: ActivationFunction
 >     }
 
-> backpropagateNet ::
->   ColumnVector Double -> [PropagatedLayer] -> [BackpropagatedLayer]
+Propagate the inputs backward through this layer to produce an output.
+
+> backpropagate :: PropagatedLayer ->
+>                  BackpropagatedLayer ->
+>                  BackpropagatedLayer
+> backpropagate layerJ layerK = BackpropagatedLayer
+>     {
+>       backpropOutGrad    = dazzleJ,
+>       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
+>       backpropActFun'Val = f'aJ,
+>       backpropIn         = bpIn,
+>       backpropOut        = propLayerOut layerJ,
+>       backpropWeights    = propLayerWeights layerJ,
+>       backPropActFun     = propLayerActFun layerJ
+>     }
+>     where dazzleJ = (backpropWeights layerK) <> (dazzleK * f'aK)
+>           dazzleK = backpropOutGrad layerK
+>           f'aK    = backpropActFun'Val layerK
+>           f'aJ    = propLayerActFun'Val layerJ
+>           bpIn    = propLayerIn layerJ
+
+> errorGrad :: ColumnVector Double ->
+>              ColumnVector Double ->
+>              ColumnVector Double ->
+>              Matrix Double
+> errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
+
+> backpropagateFinalLayer :: PropagatedLayer ->
+>                            ColumnVector Double ->
+>                            BackpropagatedLayer
+> backpropagateFinalLayer l t = BackpropagatedLayer
+>     {
+>       backpropOutGrad    = dazzle,
+>       backpropWeightGrad = errorGrad dazzle f'a (propLayerIn l),
+>       backpropActFun'Val = f'a,
+>       backpropIn         = propLayerIn l,
+>       backpropOut        = propLayerOut l,
+>       backpropWeights    = propLayerWeights l,
+>       backPropActFun     = propLayerActFun l
+>     }
+>     where dazzle =  propLayerOut l - t
+>           f'a    = propLayerActFun'Val l
+
+Move backward (from right to left) through the neural network
+i.e. this is backpropagation itself.
+
+> backpropagateNet :: ColumnVector Double ->
+>                     [PropagatedLayer] ->
+>                     [BackpropagatedLayer]
 > backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
 >   where hiddenLayers = init layers
 >         layerL = backpropagateFinalLayer (last layers) target
 
-> backpropagateFinalLayer ::
->     PropagatedLayer -> ColumnVector Double -> BackpropagatedLayer
-> backpropagateFinalLayer l t = BackpropagatedLayer
->     {
->       bpDazzle = dazzle,
->       bpErrGrad = errorGrad dazzle f'a (propLayerIn l),
->       bpF'a = propLayerActFun'Val l,
->       bpIn = propLayerIn l,
->       bpOut = propLayerOut l,
->       bpW = propLayerWeights l,
->       bpAS = propLayerActFun l
->     }
->     where dazzle =  propLayerOut l - t
->           f'a = propLayerActFun'Val l
+Now that we know all the derivatives with respect to the weights in
+every layer, we can create a new layer by moving one step in the
+direction of steepest descent.
 
-> errorGrad :: ColumnVector Double -> ColumnVector Double -> ColumnVector Double
->     -> ColumnVector Double
-> errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
-
-> -- | Propagate the inputs backward through this layer to produce an output.
-> backpropagate :: PropagatedLayer -> BackpropagatedLayer -> BackpropagatedLayer
-> backpropagate layerJ layerK = BackpropagatedLayer
->     {
->       bpDazzle = dazzleJ,
->       bpErrGrad = errorGrad dazzleJ f'aJ (propLayerIn layerJ),
->       bpF'a = propLayerActFun'Val layerJ,
->       bpIn = propLayerIn layerJ,
->       bpOut = propLayerOut layerJ,
->       bpW = propLayerWeights layerJ,
->       bpAS = propLayerActFun layerJ
->     }
->     where dazzleJ = wKT <> (dazzleK * f'aK)
->           dazzleK = bpDazzle layerK
->           wKT = trans ( bpW layerK )
->           f'aK = bpF'a layerK
->           f'aJ = propLayerActFun'Val layerJ
-
-> update :: Double -> BackpropagatedLayer -> Layer
+> update :: Double ->
+>           BackpropagatedLayer ->
+>           Layer
 > update rate layer = Layer
 >         {
 >           layerWeights = wNew,
->           layerFunction = bpAS layer
+>           layerFunction = backPropActFun layer
 >         }
->     where wOld = bpW layer
->           delW = rate `scale` bpErrGrad layer
+>     where wOld = backpropWeights layer
+>           delW = rate `scale` backpropWeightGrad layer
 >           wNew = wOld - delW
 
-> evaluateBPN :: BackpropNet -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList( propLayerOut ( last calcs ))
->   where calcs = propagateNet x net
->         x = listToColumnVector (1:input)
->
-> trainBPN :: BackpropNet -> [Double] -> [Double] -> BackpropNet
+Now we can train our network by taking a list of inputs and outputs
+using each pair to move a step in the direction of steepest descent.
+
+> trainBPN :: BackpropNet ->
+>             [Double] ->
+>             [Double] ->
+>             BackpropNet
 > trainBPN net input target = BackpropNet { layers=newLayers, learningRate=rate }
 >   where newLayers = map (update rate) backpropagatedLayers
 >         rate = learningRate net
 >         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
 >         propagatedLayers = propagateNet x net
 >         x = listToColumnVector (1:input)
+
+
+
+> evaluateBPN :: BackpropNet -> [Double] -> [Double]
+> evaluateBPN net input = columnVectorToList( propLayerOut ( last calcs ))
+>   where calcs = propagateNet x net
+>         x = listToColumnVector (1:input)
+>
 >
 
 > evalOnePattern :: BackpropNet -> ([Double], Int) -> Int
@@ -684,3 +744,9 @@ FIXME: This looks a bit yuk
 >   where
 >     normalisePixel :: Word8 -> Double
 >     normalisePixel p = (fromIntegral p) / 255.0
+
+Backpropagation
+---------------
+
+Automated Differentation
+------------------------
