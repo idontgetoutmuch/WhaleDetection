@@ -137,7 +137,6 @@ Neural Networks
 > import Numeric.AD
 > import Data.List
 > import Data.List.Split
-> import Data.Foldable (foldrM)
 > import System.Random
 
 For use in the appendix.
@@ -145,7 +144,6 @@ For use in the appendix.
 > import Data.Word
 > import qualified Data.ByteString.Lazy as BL
 > import Data.Binary.Get
-> import Data.Binary.Put
 >
 > import Debug.Trace
 > import Data.Maybe
@@ -501,18 +499,19 @@ direction of steepest descent.
 Now we can train our network by taking a list of inputs and outputs
 using each pair to move a step in the direction of steepest descent.
 
-> trainBPN :: BackpropNet ->
->             [Double] ->
->             [Double] ->
->             BackpropNet
-> trainBPN net input target = BackpropNet { layers=newLayers, learningRate=rate }
->   where newLayers = map (update rate) backpropagatedLayers
->         rate = learningRate net
+> train :: BackpropNet ->
+>          [Double] ->
+>          [Double] ->
+>          BackpropNet
+> train net input target =
+>   BackpropNet { layers       = newLayers
+>               , learningRate = rate
+>               }
+>   where newLayers            = map (update $ learningRate net) backpropagatedLayers
+>         rate                 = learningRate net
 >         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
->         propagatedLayers = propagateNet x net
->         x = listToColumnVector (1:input)
-
-
+>         propagatedLayers     = propagateNet x net
+>         x                    = listToColumnVector (1:input)
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList( propLayerOut ( last calcs ))
@@ -534,7 +533,7 @@ using each pair to move a step in the direction of steepest descent.
 > evalAllPatterns = map . evalOnePattern
 
 > trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
-> trainOnePattern trainingData net = trainBPN net input target
+> trainOnePattern trainingData net = train net input target
 >   where input = fst trainingData
 >         digit = snd trainingData
 >         target = targets !! digit
@@ -544,41 +543,13 @@ using each pair to move a step in the direction of steepest descent.
 >                         -> BackpropNet
 > trainWithAllPatterns = foldl' (flip trainOnePattern)
 
-FIXME: Fix forcing to use something other than putStrLn.
-
-> myForce :: BackpropNet -> [LabelledImage] -> IO BackpropNet
-> myForce oldNet trainingData = do
->   let newNet = trainWithAllPatterns oldNet trainingData
->   putStrLn $ show $ length $ toLists $ layerWeights $ head $ layers newNet
->   putStrLn $ show $ length $ head $ toLists $ layerWeights $ head $ layers newNet
->   return newNet
->
-> update' :: (Integer, Integer) -> BackpropNet -> IO BackpropNet
-> update' (start, end) oldNet = do
->   allTrainingData <- readTrainingData start end
->   myForce oldNet allTrainingData
->
 > main :: IO ()
 > main = do
 >   let w1 = randomWeightMatrix (nRows * nCols + 1) nNodes 7
 >   let w2 = randomWeightMatrix nNodes nDigits 42
 >   let initialNet = buildBackpropNet lRate [w1, w2] tanhAS
->
->   finalNet <- foldrM update' initialNet [ (   0,    999), (1000,   1999)
->                                         , (2000,   2999), (3000,   3999)
->                                         , (4000,   4999), (5000,   5999)
->                                         , (6000,   6999), (7000,   7999)
->                                         , (8000,   8999), (9000,   9999)
->                                         , (10000, 10999), (11000, 11999)
->                                         , (12000, 12999), (13000, 13999)
->                                         , (14000, 14999), (15000, 15999)
->                                         , (16000, 16999), (17000, 17999)
->                                         , (18000, 18999), (19000, 19999)
->                                         , (20000, 20999), (21000, 21999)
->                                         , (22000, 22999), (23000, 23999)
->                                         , (24000, 24999), (25000, 25999)
->                                         , (26000, 26999), (27000, 27999)
->                                         ]
+>   trainingData <- readTrainingData
+>   let finalNet = trainWithAllPatterns initialNet trainingData
 >
 >   testData2 <- readTestData
 >   let testData = take 1000 testData2
@@ -606,20 +577,6 @@ Appendix
 >   let (_, _, labels) = runGet deserialiseLabels content
 >   return (map fromIntegral labels)
 >
-> serialiseLabels :: Word32 -> Word32 -> [Word8] -> Put
-> serialiseLabels magicNumber count labels = do
->   putWord32be magicNumber
->   putWord32be count
->   mapM_ putWord8 labels
->
-> writeLabels :: FilePath -> [Int] -> IO ()
-> writeLabels fileName labels = do
->   let content = runPut $ serialiseLabels
->                          0x00000801
->                          (fromIntegral $ length labels)
->                          (map fromIntegral labels)
->   BL.writeFile fileName content
-
 
 > deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
 > deserialiseHeader = do
@@ -632,53 +589,11 @@ Appendix
 >   let unpackedData = chunksOf len (BL.unpack packedData)
 >   return (magicNumber, imageCount, r, c, unpackedData)
 >
-> deserialiseHeader' :: Integer -> Integer -> Get (Word32, Word32, Word32, Word32, [[Word8]])
-> deserialiseHeader' start end = do
->   magicNumber <- getWord32be
->   imageCount <- getWord32be
->   r <- getWord32be
->   c <- getWord32be
->   let len = fromIntegral (r * c)
->   _ <- getLazyByteString (fromIntegral $ len * start)
->   packedData <- getLazyByteString (fromIntegral $ len * (end - start + 1))
->   let unpackedData = chunksOf (fromIntegral len) (BL.unpack packedData)
->   return (magicNumber, imageCount, r, c, unpackedData)
->
 > readImages :: FilePath -> IO [Image]
 > readImages filename = do
 >   content <- BL.readFile filename
 >   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
 >   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
->
-> readImages' :: FilePath -> Integer -> Integer -> IO [Image]
-> readImages' filename start end = do
->   content <- BL.readFile filename
->   let (_, _, r, c, unpackedData) = runGet (deserialiseHeader' start end) content
->   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
->
-> serialiseHeader :: Word32 -> Word32 -> Word32 -> Word32 -> [[Word8]] -> Put
-> serialiseHeader magicNumber imageCount nRows nCols iss = do
->   putWord32be magicNumber
->   putWord32be imageCount
->   putWord32be nRows
->   putWord32be nCols
->   mapM_ putWord8 $ concat iss
->
-> writeImages :: FilePath -> [Image] -> IO ()
-> writeImages fileName is = do
->   let content = runPut $ serialiseHeader
->                          0x00000803
->                          (fromIntegral $ length is)
->                          (fromIntegral $ iRows $ head is)
->                          (fromIntegral $ iColumns $ head is)
->                          (map iPixels is)
->   BL.writeFile fileName content
->
-> writeImage :: FilePath -> Image -> IO ()
-> writeImage fileName i = do
->  let content = runPut $ mapM_ putWord8 $ iPixels i
->  BL.appendFile fileName content
->
 >
 > -- | Inputs, outputs and targets are represented as column vectors instead of lists
 > type ColumnVector a = Matrix a
@@ -726,17 +641,17 @@ FIXME: This looks a bit yuk
 > interpret :: [Double] -> Int
 > interpret v = fromJust (elemIndex (maximum v) v)
 
-> readTrainingData :: Integer -> Integer -> IO [LabelledImage]
-> readTrainingData start end = do
->   trainingLabels <- readLabels "whales-labels-test.mnist"
->   trainingImages <- readImages' "pca-images-train.mnist" start end
->   return $ {- enrich $ -} zip (map normalisedData trainingImages) trainingLabels
+> readTrainingData ::  IO [LabelledImage]
+> readTrainingData = do
+>   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+>   trainingImages <- readImages "train-images-idx3-ubyte"
+>   return $ zip (map normalisedData trainingImages) trainingLabels
 >
 > readTestData :: IO [LabelledImage]
 > readTestData = do
 >   putStrLn "Reading test labels..."
->   testLabels <- readLabels "whales-labels-test.mnist"
->   testImages <- readImages "pca-images-train.mnist"
+>   testLabels <- readLabels "t10k-labels-idx1-ubyte"
+>   testImages <- readImages "t10k-images-idx3-ubyte"
 >   return (zip (map normalisedData testImages) testLabels)
 
 > normalisedData :: Image -> [Double]
