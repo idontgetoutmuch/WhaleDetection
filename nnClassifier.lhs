@@ -69,63 +69,17 @@ instructive to apply both backpropagation and automated
 differentiation to this simpler problem.
 
 ```{.dia width='400'}
+import NnClassifierDia
 dia = nn
 ```
-Green squares like `gSq`{.dia height='16'}
-and blue circles like `circle 1 # fc blue`{.dia height='16'}
-are extremely important.
-
-    [dia-def]
-
-    fact 0 = 1
-    fact n = n * fact (n-1)
-
-    gSq = square (1 / fact 1) # fc green # opacity 0.5 <>
-          square (1 / fact 2) # fc blue # opacity 0.5
-
-    nn = mconcat layer1s <>
-         mconcat layer2s <>
-         mconcat arrow1s <>
-         mconcat arrow2s <>
-         mconcat layer3s <>
-         background
-           where
-             layer1s = zipWith (myCircle' 0.1) [0.1,0.3..0.9] ["x1", "x2", "x3", "x4", "x5"]
-             arrow1s = map (\x -> drawV 0.1 x (0.8 *^ getDirection (0.1, x) (0.5, 0.5))) [0.1,0.3..0.9]
-             layer2s = [myCircle'' 0.5 0.5 "a"]
-             arrow2s = [drawV 0.5 0.5 (0.8 *^ getDirection (0.5, 0.5) (0.8, 0.5))]
-             layer3s = [text "y = f(a)" # scale 0.05 # translate (r2 (0.9, 0.5))]
-
-    getDirection (x1, y1) (x2, y2) =
-      (x2 - x1) & (y2 - y1)
-
-    drawV x y v = (arrowHead <> shaft) # fc black # translate (r2 (x, y))
-       where
-        shaft     = origin ~~ (origin .+^ v)
-        arrowHead = eqTriangle 0.01
-                  # rotateBy (direction v - 1/4)
-                  # translate v
-
-    myCircle' x y l =
-      (t # translate (r2 (x - 0.1, y + 0.1))) <>
-      (circle 0.05 # fc blue # translate (r2 (x, y)) # opacity 0.5)
-      where
-        t = text l # scale 0.05
-
-    myCircle'' x y l =
-      (t # translate (r2 (x, y + 0.1))) <>
-      (circle 0.05 # fc blue # translate (r2 (x, y)) # opacity 0.5)
-      where
-        t = text l # scale 0.05
-
-    background = rect 1.2 1.2 # translate (r2 (0.5, 0.5)) # fc beige # opacity 0.5
-
-
 Neural Networks
 ---------------
 
 >
 > {-# LANGUAGE RankNTypes #-}
+> {-# LANGUAGE DeriveFunctor #-}
+> {-# LANGUAGE DeriveFoldable #-}
+> {-# LANGUAGE DeriveTraversable #-}
 >
 > {-# OPTIONS_GHC -Wall                    #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -145,7 +99,6 @@ For use in the appendix.
 > import qualified Data.ByteString.Lazy as BL
 > import Data.Binary.Get
 >
-> import Debug.Trace
 > import Data.Maybe
 
 We (or rather the authors of the [MonadReader article][MonadReader])
@@ -225,6 +178,9 @@ $$
 E(\vec{x}) = \frac{1}{2}\sum_1^{N_L}(\hat{y}^L_i - y^L_i)^2
 $$
 
+Backpropagation
+---------------
+
 As with logistic regression, our goal is to find weights for the
 neural network which minimises this cost function. The method that is
 used in backpropagation to is to initialise the weights to some small
@@ -257,28 +213,6 @@ $$
 
 where $\gamma$ is the step length known in machine learning parlance
 as the learning rate.
-
-FIXME: We can probably get the number of rows and columns from the
-data itself.
-
-Our neural net configuration. We wish to classify images which are $28
-\times 28$ pixels into 10 digits using a single layer neural net with
-20 nodes.
-
-> lRate :: Double
-> lRate = 0.007
-> nRows, nCols, nNodes, nDigits :: Int
-> nRows = 28
-> nCols = 28
-> nNodes = 20
-> nDigits = 10
->
-> smallRandoms :: Int -> [Double]
-> smallRandoms seed = map (/100) (randoms (mkStdGen seed))
->
-> randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
-> randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
->     where weights = take (numOutputs*numInputs) (smallRandoms seed)
 
 
 The implementation below is a modified version of [MonadLayer].
@@ -359,7 +293,7 @@ the record of the calculations at the next layer.
 > propagate layerJ layerK = PropagatedLayer
 >         {
 >           propLayerIn         = layerJOut,
->           propLayerOut        = mapMatrix f  a,
+>           propLayerOut        = mapMatrix f a,
 >           propLayerActFun'Val = mapMatrix (diff f) a,
 >           propLayerWeights    = weights,
 >           propLayerActFun     = layerFunction layerK
@@ -442,7 +376,7 @@ Propagate the inputs backward through this layer to produce an output.
 >       backpropWeights    = propLayerWeights layerJ,
 >       backPropActFun     = propLayerActFun layerJ
 >     }
->     where dazzleJ = (backpropWeights layerK) <> (dazzleK * f'aK)
+>     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
 >           dazzleK = backpropOutGrad layerK
 >           f'aK    = backpropActFun'Val layerK
 >           f'aJ    = propLayerActFun'Val layerJ
@@ -513,8 +447,43 @@ using each pair to move a step in the direction of steepest descent.
 >         propagatedLayers     = propagateNet x net
 >         x                    = listToColumnVector (1:input)
 
+> trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
+> trainOnePattern trainingData net = train net input target
+>   where input = fst trainingData
+>         digit = snd trainingData
+>         target = targets !! digit
+>         targets :: [[Double]]
+>         targets = map row [0 .. nDigits - 1]
+>           where
+>             row m = concat [x, 1.0 : y]
+>               where
+>                 (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
+
+> trainWithAllPatterns :: BackpropNet ->
+>                         [([Double], Int)]
+>                         -> BackpropNet
+> trainWithAllPatterns = foldl' (flip trainOnePattern)
+
+Automated Differentation
+------------------------
+
+> data PropagatedLayer' a
+>     = PropagatedLayer'
+>         {
+>           propLayerIn'         :: [a],
+>           propLayerOut'        :: [a],
+>           propLayerActFun'Val' :: [a],
+>           propLayerWeights'    :: [[a]],
+>           propLayerActFun'     :: ActivationFunction
+>         }
+>     | PropagatedSensorLayer'
+>         {
+>           propLayerOut' :: [a]
+>         }
+
+
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList( propLayerOut ( last calcs ))
+> evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
 >   where calcs = propagateNet x net
 >         x = listToColumnVector (1:input)
 >
@@ -522,7 +491,6 @@ using each pair to move a step in the direction of steepest descent.
 
 > evalOnePattern :: BackpropNet -> ([Double], Int) -> Int
 > evalOnePattern net trainingData =
->   trace (show target ++ ":" ++ show rawResult ++ ":" ++ show result ++ ":" ++ show ((rawResult!!1) / (rawResult!!0))) $
 >   isMatch result target
 >   where input = fst trainingData
 >         target = snd trainingData
@@ -532,36 +500,50 @@ using each pair to move a step in the direction of steepest descent.
 > evalAllPatterns :: BackpropNet -> [([Double], Int)] -> [Int]
 > evalAllPatterns = map . evalOnePattern
 
-> trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
-> trainOnePattern trainingData net = train net input target
->   where input = fst trainingData
->         digit = snd trainingData
->         target = targets !! digit
 
-> trainWithAllPatterns :: BackpropNet ->
->                         [([Double], Int)]
->                         -> BackpropNet
-> trainWithAllPatterns = foldl' (flip trainOnePattern)
+Appendix
+--------
+
+In order to run the trained neural network then we need some training
+data and test data.
+
+FIXME: We can probably get the number of rows and columns from the
+data itself.
+
+Our neural net configuration. We wish to classify images which are $28
+\times 28$ pixels into 10 digits using a single layer neural net with
+20 nodes.
+
+> lRate :: Double
+> lRate = 0.007
+> nRows, nCols, nNodes, nDigits :: Int
+> nRows = 28
+> nCols = 28
+> nNodes = 20
+> nDigits = 10
+>
+> smallRandoms :: Int -> [Double]
+> smallRandoms seed = map (/100) (randoms (mkStdGen seed))
+>
+> randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
+> randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
+>     where weights = take (numOutputs*numInputs) (smallRandoms seed)
 
 > main :: IO ()
 > main = do
 >   let w1 = randomWeightMatrix (nRows * nCols + 1) nNodes 7
 >   let w2 = randomWeightMatrix nNodes nDigits 42
 >   let initialNet = buildBackpropNet lRate [w1, w2] tanhAS
->   trainingData <- readTrainingData
+>   trainingData <- fmap (take 8000) readTrainingData
 >   let finalNet = trainWithAllPatterns initialNet trainingData
 >
->   testData2 <- readTestData
->   let testData = take 1000 testData2
+>   testData <- fmap (take 1000) readTestData
 >   putStrLn $ "Testing with " ++ show (length testData) ++ " images"
 >   let results = evalAllPatterns finalNet testData
 >   let score = fromIntegral (sum results)
 >   let count = fromIntegral (length testData)
 >   let percentage = 100.0 * score / count
 >   putStrLn $ "I got " ++ show percentage ++ "% correct"
-
-Appendix
---------
 
 > deserialiseLabels :: Get (Word32, Word32, [Word8])
 > deserialiseLabels = do
@@ -621,15 +603,6 @@ Appendix
 >       activationFunction = tanh
 >     }
 
-FIXME: Hem hem surely we can generate this automatically
-
-> targets :: [[Double]]
-> targets =
->     [
->         [0.9, 0.1]
->       , [0.1, 0.9]
->     ]
-
 FIXME: This looks a bit yuk
 
 > isMatch :: (Eq a) => a -> a -> Int
@@ -660,8 +633,3 @@ FIXME: This looks a bit yuk
 >     normalisePixel :: Word8 -> Double
 >     normalisePixel p = (fromIntegral p) / 255.0
 
-Backpropagation
----------------
-
-Automated Differentation
-------------------------
