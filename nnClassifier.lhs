@@ -80,6 +80,7 @@ Neural Networks
 > {-# LANGUAGE DeriveFunctor #-}
 > {-# LANGUAGE DeriveFoldable #-}
 > {-# LANGUAGE DeriveTraversable #-}
+> {-# LANGUAGE ScopedTypeVariables #-}
 >
 > {-# OPTIONS_GHC -Wall                    #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -115,7 +116,7 @@ A labelled image contains the image and what this image actually
 represents e.g. the image of the numeral 9 could and should be
 represented by the value 9.
 
-> type LabelledImage = ([Double], Int)
+> type LabelledImage a = ([a], Int)
 
 
 We follow [@rojas1996neural;@Bishop:2006:PRM:1162264]. We are given a training set:
@@ -452,12 +453,13 @@ using each pair to move a step in the direction of steepest descent.
 >   where input = fst trainingData
 >         digit = snd trainingData
 >         target = targets !! digit
->         targets :: [[Double]]
->         targets = map row [0 .. nDigits - 1]
->           where
->             row m = concat [x, 1.0 : y]
->               where
->                 (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
+>
+> targets :: Floating a => [[a]]
+> targets = map row [0 .. nDigits - 1]
+>   where
+>     row m = concat [x, 1.0 : y]
+>       where
+>         (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
 
 > trainWithAllPatterns :: BackpropNet ->
 >                         [([Double], Int)]
@@ -512,45 +514,64 @@ Automated Differentation
 >         f :: Floating a => a -> a
 >         f = activationFunction $ layerFunction' layerK
 
-> propagateNet' :: ColumnVector Double -> BackpropNet -> [PropagatedLayer]
+> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet' a -> [PropagatedLayer' a]
 > propagateNet' input net = tail calcs
->   where calcs = scanl propagate layer0 (layers net)
->         layer0 = PropagatedSensorLayer $ validateInput net input
+>   where calcs = scanl propagate' layer0 (layers' net)
+>         layer0 = PropagatedSensorLayer' $ validateInput net input
 >
->         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
 >         validateInput net = validateInputValues . validateInputDimensions net
 >
->         validateInputDimensions ::
->           BackpropNet ->
->           ColumnVector Double ->
->           ColumnVector Double
 >         validateInputDimensions net input =
 >           if got == expected
 >           then input
 >           else error ("Input pattern has " ++ show got ++ " bits, but " ++
 >                       show expected ++ " were expected")
->           where got      = rows input
->                 expected = inputWidth $ head $ layers net
+>           where got      = length input
+>                 expected = length $ head $ layerWeights' $ head $ layers' net
 >
->         validateInputValues :: ColumnVector Double -> ColumnVector Double
 >         validateInputValues input =
->           if (minimum ns >= 0) && (maximum ns <= 1)
+>           if (minimum input >= 0) && (maximum input <= 1)
 >           then input
 >           else error "Input bits outside of range [0,1]"
->           where
->             ns = toList ( flatten input )
+
+> buildBackpropNet' ::
+>   Double ->
+>   [[[a]]] ->
+>   ActivationFunction ->
+>   BackpropNet' a
+> buildBackpropNet' learningRate ws f =
+>   BackpropNet' {
+>       layers'       = map buildLayer checkedWeights
+>     , learningRate' = learningRate
+>     }
+>   where checkedWeights = scanl1 checkDimensions ws
+>         buildLayer w   = Layer' { layerWeights'  = w
+>                                 , layerFunction' = f
+>                                 }
+>         checkDimensions :: [[a]] -> [[a]] -> [[a]]
+>         checkDimensions w1 w2 =
+>           if length w1 == length (head w2)
+>           then w2
+>           else error $ "Inconsistent dimensions in weight matrix\n" ++
+>                         show (length w1)        ++ "\n" ++
+>                         show (length w2)        ++ "\n" ++
+>                         show (length $ head w1) ++ "\n" ++
+>                         show (length $ head w2)
+
+> evaluateBPN' :: (Floating a, Ord a) => BackpropNet' a -> [a] -> [a]
+> evaluateBPN' net input = propLayerOut' $ last calcs
+>   where calcs = propagateNet' (1:input) net
 >
->         inputWidth :: Layer -> Int
->         inputWidth = cols . layerWeights
-
-
+> costFn :: (Floating a, Ord a) => Int -> [a] -> BackpropNet' a -> a
+> costFn expectedDigit input net = 0.5 * sum (map (^2) diffs)
+>   where
+>     predicted = evaluateBPN' net input
+>     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
 >   where calcs = propagateNet x net
 >         x = listToColumnVector (1:input)
->
->
 
 > evalOnePattern :: BackpropNet -> ([Double], Int) -> Int
 > evalOnePattern net trainingData =
@@ -585,18 +606,35 @@ Our neural net configuration. We wish to classify images which are $28
 > nNodes = 20
 > nDigits = 10
 >
-> smallRandoms :: Int -> [Double]
+> smallRandoms :: (Random a, Floating a) => Int -> [a]
 > smallRandoms seed = map (/100) (randoms (mkStdGen seed))
 >
 > randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
-> randomWeightMatrix numInputs numOutputs seed = (numOutputs><numInputs) weights
->     where weights = take (numOutputs*numInputs) (smallRandoms seed)
+> randomWeightMatrix numInputs numOutputs seed = x
+>   where
+>     x = (numOutputs >< numInputs) weights
+>     weights = take (numOutputs * numInputs) (smallRandoms seed)
+>
+> randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
+> randomWeightMatrix' numInputs numOutputs seed = y
+>   where
+>     -- y :: (Random a, Floating a) => [[a]]
+>     y = chunksOf numInputs weights
+>     -- weights :: (Random a, Floating a) => [a]
+>     weights = take (numOutputs * numInputs) (smallRandoms seed)
 
 > main :: IO ()
 > main = do
->   let w1 = randomWeightMatrix (nRows * nCols + 1) nNodes 7
->   let w2 = randomWeightMatrix nNodes nDigits 42
->   let initialNet = buildBackpropNet lRate [w1, w2] tanhAS
+>   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
+>       w2  = randomWeightMatrix nNodes nDigits 42
+>       w1' :: (Random a, Floating a) => [[a]]
+>       w1' = randomWeightMatrix' (nRows * nCols + 1) nNodes 7
+>       w2' :: (Random a, Floating a) => [[a]]
+>       w2' = randomWeightMatrix' nNodes nDigits 42
+>       initialNet  = buildBackpropNet  lRate [w1, w2] tanhAS
+>       initialNet' :: (Random a, Floating a) => BackpropNet' a
+>       initialNet' = buildBackpropNet' lRate [w1', w2'] tanhAS
+>
 >   trainingData <- fmap (take 8000) readTrainingData
 >   let finalNet = trainWithAllPatterns initialNet trainingData
 >
@@ -677,22 +715,22 @@ FIXME: This looks a bit yuk
 > interpret :: [Double] -> Int
 > interpret v = fromJust (elemIndex (maximum v) v)
 
-> readTrainingData ::  IO [LabelledImage]
+> readTrainingData ::  Floating a => IO [LabelledImage a]
 > readTrainingData = do
 >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
 >   trainingImages <- readImages "train-images-idx3-ubyte"
 >   return $ zip (map normalisedData trainingImages) trainingLabels
 >
-> readTestData :: IO [LabelledImage]
+> readTestData :: Floating a => IO [LabelledImage a]
 > readTestData = do
 >   putStrLn "Reading test labels..."
 >   testLabels <- readLabels "t10k-labels-idx1-ubyte"
 >   testImages <- readImages "t10k-images-idx3-ubyte"
 >   return (zip (map normalisedData testImages) testLabels)
 
-> normalisedData :: Image -> [Double]
+> normalisedData :: Floating a => Image -> [a]
 > normalisedData image = map normalisePixel (iPixels image)
 >   where
->     normalisePixel :: Word8 -> Double
+>     normalisePixel :: Floating a => Word8 -> a
 >     normalisePixel p = (fromIntegral p) / 255.0
 
