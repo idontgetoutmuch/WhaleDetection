@@ -481,6 +481,69 @@ Automated Differentation
 >           propLayerOut' :: [a]
 >         }
 
+> data Layer' a =
+>   Layer'
+>   {
+>     layerWeights'  :: [[a]],
+>     layerFunction' :: ActivationFunction
+>   }
+
+> data BackpropNet' a = BackpropNet'
+>     {
+>       layers'       :: [Layer' a],
+>       learningRate' :: Double
+>     }
+
+> matMult :: Num a => [[a]] -> [a] -> [a]
+> matMult m v = map (\r -> sum $ zipWith (*) r v) m
+
+> propagate' :: Floating a => PropagatedLayer' a -> Layer' a -> PropagatedLayer' a
+> propagate' layerJ layerK = PropagatedLayer'
+>         {
+>           propLayerIn'         = layerJOut,
+>           propLayerOut'        = map f a,
+>           propLayerActFun'Val' = map (diff f) a,
+>           propLayerWeights'    = weights,
+>           propLayerActFun'     = layerFunction' layerK
+>         }
+>   where layerJOut = propLayerOut' layerJ
+>         weights   = layerWeights' layerK
+>         a = weights `matMult` layerJOut
+>         f :: Floating a => a -> a
+>         f = activationFunction $ layerFunction' layerK
+
+> propagateNet' :: ColumnVector Double -> BackpropNet -> [PropagatedLayer]
+> propagateNet' input net = tail calcs
+>   where calcs = scanl propagate layer0 (layers net)
+>         layer0 = PropagatedSensorLayer $ validateInput net input
+>
+>         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
+>         validateInput net = validateInputValues . validateInputDimensions net
+>
+>         validateInputDimensions ::
+>           BackpropNet ->
+>           ColumnVector Double ->
+>           ColumnVector Double
+>         validateInputDimensions net input =
+>           if got == expected
+>           then input
+>           else error ("Input pattern has " ++ show got ++ " bits, but " ++
+>                       show expected ++ " were expected")
+>           where got      = rows input
+>                 expected = inputWidth $ head $ layers net
+>
+>         validateInputValues :: ColumnVector Double -> ColumnVector Double
+>         validateInputValues input =
+>           if (minimum ns >= 0) && (maximum ns <= 1)
+>           then input
+>           else error "Input bits outside of range [0,1]"
+>           where
+>             ns = toList ( flatten input )
+>
+>         inputWidth :: Layer -> Int
+>         inputWidth = cols . layerWeights
+
+
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
