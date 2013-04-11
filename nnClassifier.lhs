@@ -90,6 +90,8 @@ Neural Networks
 
 > import Numeric.LinearAlgebra
 > import Numeric.AD
+> import Data.Traversable (Traversable)
+> import Data.Foldable (Foldable)
 > import Data.List
 > import Data.List.Split
 > import System.Random
@@ -481,20 +483,20 @@ Automated Differentation
 >     | PropagatedSensorLayer'
 >         {
 >           propLayerOut' :: [a]
->         }
+>         } deriving (Functor, Foldable, Traversable)
 
 > data Layer' a =
 >   Layer'
 >   {
 >     layerWeights'  :: [[a]],
 >     layerFunction' :: ActivationFunction
->   }
+>   } deriving (Functor, Foldable, Traversable)
 
 > data BackpropNet' a = BackpropNet'
 >     {
 >       layers'       :: [Layer' a],
 >       learningRate' :: Double
->     }
+>     } deriving (Functor, Foldable, Traversable)
 
 > matMult :: Num a => [[a]] -> [a] -> [a]
 > matMult m v = map (\r -> sum $ zipWith (*) r v) m
@@ -632,10 +634,24 @@ Our neural net configuration. We wish to classify images which are $28
 >       w2' :: (Random a, Floating a) => [[a]]
 >       w2' = randomWeightMatrix' nNodes nDigits 42
 >       initialNet  = buildBackpropNet  lRate [w1, w2] tanhAS
->       initialNet' :: (Random a, Floating a) => BackpropNet' a
+>       initialNet' :: BackpropNet' Double
 >       initialNet' = buildBackpropNet' lRate [w1', w2'] tanhAS
 >
 >   trainingData <- fmap (take 8000) readTrainingData
+>
+>   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+>   trainingImages <- readImages "train-images-idx3-ubyte"
+>
+>   let trainingData' :: RealFrac a => [LabelledImage a]
+>       trainingData' = zip (map normalisedData' trainingImages) trainingLabels
+>
+>   let costWeights :: (Ord a, RealFrac a, Floating a) => BackpropNet' a -> a
+>       costWeights = costFn (snd $ head trainingData') (fst $ head trainingData')
+>       derivCostWeights :: (Floating a, RealFrac a) => BackpropNet' a -> BackpropNet' a
+>       derivCostWeights = grad costWeights
+>
+>   error $ take 1000 $ show $ map layerWeights' $ layers' $ derivCostWeights initialNet'
+>
 >   let finalNet = trainWithAllPatterns initialNet trainingData
 >
 >   testData <- fmap (take 1000) readTestData
@@ -720,7 +736,13 @@ FIXME: This looks a bit yuk
 >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
 >   trainingImages <- readImages "train-images-idx3-ubyte"
 >   return $ zip (map normalisedData trainingImages) trainingLabels
->
+
+> readTrainingData' ::  RealFrac a => IO [LabelledImage a]
+> readTrainingData' = do
+>   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+>   trainingImages <- readImages "train-images-idx3-ubyte"
+>   return $ zip (map normalisedData' trainingImages) trainingLabels
+
 > readTestData :: Floating a => IO [LabelledImage a]
 > readTestData = do
 >   putStrLn "Reading test labels..."
@@ -732,5 +754,10 @@ FIXME: This looks a bit yuk
 > normalisedData image = map normalisePixel (iPixels image)
 >   where
 >     normalisePixel :: Floating a => Word8 -> a
+>     normalisePixel p = (fromIntegral p) / 255.0
+
+> normalisedData' :: RealFrac a => Image -> [a]
+> normalisedData' image = map normalisePixel (iPixels image)
+>   where
 >     normalisePixel p = (fromIntegral p) / 255.0
 
