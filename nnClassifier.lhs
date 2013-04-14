@@ -58,7 +58,63 @@ Michael Russell and Mark Daly.
 Multivariate Linear Logistic Regression
 ---------------------------------------
 
+$$
+y = tanh (\sum_{i=1}^{22} w_i * x_i + c)
+$$
+
+Let us consider linear regression first. We have
+
+$$
+\vec{y} = X\vec{w}
+$$
+
+We wish to minimise the loss function:
+
+$$
+\mathbb{L} = \vec{r}\cdot\vec{r}
+$$
+
+where
+
+$$
+\vec{r} = \vec{y} - X\vec{w}
+$$
+
+Differentiating:
+
+$$
+\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n r_i \frac{\partial r_i}{\partial w_j}
+$$
+
+We also have that:
+
+$$
+\frac{\partial r_i}{\partial w_j} = -X_{ij}
+$$
+
+Substituting:
+
+$$
+\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}w_k)(-X_{ij})
+$$
+
+The minimum of the loss function is reached when
+
+$$
+\frac{\partial \mathbb{L}}{\partial w_j} = 0
+$$
+
+Substituting again we have find that the values of $\vec{w} = \vec{\hat{w}}$ which
+minimise the loss function satisfy
+
+$$
+2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}\hat{w}_k)(-X_{ij}) = 0
+$$
+
+
   [LogisticRegression]: http://en.wikipedia.org/wiki/Logistic_regression
+
+FIXME: We should reference the GLM book.
 
 FIXME: Reference for neural net, multi-layer perceptron and logistic
 regression.
@@ -103,6 +159,8 @@ For use in the appendix.
 > import Data.Binary.Get
 >
 > import Data.Maybe
+>
+> import Numeric.GSL.Fitting.Linear
 
 We (or rather the authors of the [MonadReader article][MonadReader])
 represent an image as a reocord; the pixels are represented using an
