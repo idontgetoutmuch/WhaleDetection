@@ -55,6 +55,47 @@ Acknowledgements
 The authors of the [MonadReader][MonadReader]: Amy de Buitléir,
 Michael Russell and Mark Daly.
 
+Haskell Foreword
+----------------
+
+Some pragmas and imports required for the example code.
+
+> {-# LANGUAGE RankNTypes #-}
+> {-# LANGUAGE DeriveFunctor #-}
+> {-# LANGUAGE DeriveFoldable #-}
+> {-# LANGUAGE DeriveTraversable #-}
+> {-# LANGUAGE ScopedTypeVariables #-}
+>
+> {-# OPTIONS_GHC -Wall                    #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
+> module Main (main) where
+
+> import Numeric.LinearAlgebra
+> import Numeric.AD
+> import Data.Traversable (Traversable)
+> import Data.Foldable (Foldable)
+> import Data.List
+> import Data.List.Split
+> import System.Random
+
+For use in the appendix.
+
+> import Data.Word
+> import qualified Data.ByteString.Lazy as BL
+> import Data.Binary.Get
+>
+> import Data.Maybe
+>
+> import Numeric.GSL.Fitting.Linear
+
+> import Data.Csv hiding (Field)
+> import qualified Data.ByteString.Lazy as BS
+> import System.IO
+> import Data.Char
+> import qualified Data.Vector as V
+
 Multivariate Linear Logistic Regression
 ---------------------------------------
 
@@ -116,6 +157,42 @@ $$
 
 FIXME: We should reference the GLM book.
 
+> myOptions :: DecodeOptions
+> myOptions = defaultDecodeOptions {
+>   decDelimiter = fromIntegral (ord ',')
+>   }
+
+> linReg :: IO ()
+> linReg = do
+>   vals <- {- fmap (V.take 12) $ -} withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
+>           (\h -> do c <- BS.hGetContents h
+>                     let mvv :: Either String (V.Vector (V.Vector Double))
+>                         mvv = decodeWith myOptions True c
+>                     case mvv of
+>                       Left s -> do putStrLn s
+>                                    return V.empty
+>                       Right vv -> return vv
+>           )
+>
+>   let labels = fromList $ V.toList $ V.map (V.! 0) vals
+>       inds  = V.map (V.drop 1) vals
+>       rowsV = V.map (V.toList) xTrain
+>       nRows = V.length rowsV
+>       nCols = V.length $ V.head xTrain
+>       featuress = V.map (V.splitAt 11) inds
+>       tF x = log $ x + 1
+>       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
+>                      featuress
+>       indVrs = (><) nRows nCols $ concat $ V.toList rowsV
+>       (coeffs, covMat, _) = multifit indVrs labels
+>       ests =  V.map (\x -> fst $ multifit_est (fromList x) coeffs covMat) rowsV
+>   -- putStrLn $ show ests
+>   -- putStrLn $ show labels
+>   let diffs = zipWith (-) (toList labels) (V.toList ests)
+>   -- putStrLn $ show diffs
+>   putStrLn $ show $ (sum (map (^2) diffs) / (fromIntegral $ length diffs))
+>
+
 FIXME: Reference for neural net, multi-layer perceptron and logistic
 regression.
 
@@ -124,6 +201,29 @@ generalisation of (multivariate) linear logistic regression. It is
 instructive to apply both backpropagation and automated
 differentiation to this simpler problem.
 
+Following [Ng][Ng:cs229], we assume that:
+
+  [Ng:cs229]: http://http://cs229.stanford.edu
+
+\begin{align*}
+{\mathbb P}(y = 1 \mid \vec{x}; \theta) &= h_{\theta}(\vec{x}) \\
+{\mathbb P}(y = 0 \mid \vec{x}; \theta) &= 1 - h_{\theta}(\vec{x})
+\end{align*}
+
+which we can re-write as:
+
+$$
+p(y \mid \vec{x} ; \theta) = (h_{\theta}(x))^y(1 - h_{\theta}(x))^{1 - y}
+$$
+
+We wish to find the value of $\theta$ that gives the maximum
+probability to the observations. We do this by maximising the
+likelihood. Assuming we have $n$ observations the likelihood is:
+
+\begin{align*}
+L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta)
+\end{align*}
+
 ```{.dia width='400'}
 import NnClassifierDia
 dia = nn
@@ -131,36 +231,6 @@ dia = nn
 Neural Networks
 ---------------
 
->
-> {-# LANGUAGE RankNTypes #-}
-> {-# LANGUAGE DeriveFunctor #-}
-> {-# LANGUAGE DeriveFoldable #-}
-> {-# LANGUAGE DeriveTraversable #-}
-> {-# LANGUAGE ScopedTypeVariables #-}
->
-> {-# OPTIONS_GHC -Wall                    #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
-
-> module Main (main) where
-
-> import Numeric.LinearAlgebra
-> import Numeric.AD
-> import Data.Traversable (Traversable)
-> import Data.Foldable (Foldable)
-> import Data.List
-> import Data.List.Split
-> import System.Random
-
-For use in the appendix.
-
-> import Data.Word
-> import qualified Data.ByteString.Lazy as BL
-> import Data.Binary.Get
->
-> import Data.Maybe
->
-> import Numeric.GSL.Fitting.Linear
 
 We (or rather the authors of the [MonadReader article][MonadReader])
 represent an image as a reocord; the pixels are represented using an
