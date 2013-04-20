@@ -201,28 +201,123 @@ generalisation of (multivariate) linear logistic regression. It is
 instructive to apply both backpropagation and automated
 differentiation to this simpler problem.
 
-Following [Ng][Ng:cs229], we assume that:
+Following [Ng][Ng:cs229], we define:
 
-  [Ng:cs229]: http://http://cs229.stanford.edu
+  [Ng:cs229]: http://cs229.stanford.edu
 
+$$
+h_{\theta}(\vec{x}) = g(\theta^T\vec{x})
+$$
+
+where $\theta = (\theta_1, \ldots, \theta_m)$ and $g$ is a function
+such as the logistic function $g(x) = 1 / (1 + e^{-\theta^T\vec{x}})$
+or $\tanh$.
+
+Next we define the probability of getting a particular value of the binary lable:
+
+$$
 \begin{align*}
 {\mathbb P}(y = 1 \mid \vec{x}; \theta) &= h_{\theta}(\vec{x}) \\
 {\mathbb P}(y = 0 \mid \vec{x}; \theta) &= 1 - h_{\theta}(\vec{x})
 \end{align*}
+$$
 
 which we can re-write as:
 
 $$
-p(y \mid \vec{x} ; \theta) = (h_{\theta}(x))^y(1 - h_{\theta}(x))^{1 - y}
+p(y \mid \vec{x} ; \theta) = (h_{\theta}(\vec{x}))^y(1 - h_{\theta}(\vec{x}))^{1 - y}
 $$
 
 We wish to find the value of $\theta$ that gives the maximum
 probability to the observations. We do this by maximising the
 likelihood. Assuming we have $n$ observations the likelihood is:
 
+$$
 \begin{align*}
-L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta)
+L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta) \\
+          &= \prod_{i=1}^n (h_{\theta}(\vec{x}^{(i)}))^{y^{(i)}} (1 - h_{\theta}(\vec{x}^{(i)}))^{1 - y^{(i)}}
 \end{align*}
+$$
+
+It is standard practice to maximise the log likelihood which will give the same maximum as log is monotonic.
+
+$$
+\begin{align*}
+l(\theta) &= \log L(\theta) \\
+          &= \sum_{i=1}^n {y^{(i)}}\log h_{\theta}(\vec{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\theta}(\vec{x}^{(i)}))
+\end{align*}
+$$
+
+We now use [gradient descent][GradientDescent] to find the maximum by
+starting with a random value for the unknown parameter and then
+stepping in the steepest direction.
+
+  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
+
+$$
+\theta' = \theta + \gamma\nabla_{\theta}l(\theta)
+$$
+
+Differentiating the log likelihood, we have:
+
+$$
+\begin{align*}
+\frac{\partial}{\partial \theta_i}l(\theta) &= \big(y\frac{1}{g(\theta^T\vec{x})} - (1 - y)\frac{1}{1 - g(\theta^T\vec{x})}\big)\frac{\partial}{\partial \theta_i}g(\theta^T\vec{x})
+\end{align*}
+$$
+
+> foo :: Fractional a => Double -> a
+> foo = fromRational . toRational
+>
+> gamma :: Double
+> gamma = 0.01
+>
+> logit :: Floating a => V.Vector a -> V.Vector a -> a
+> logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
+>
+> initWs = V.replicate 11 0.1
+>
+> logReg :: IO ()
+> logReg = do
+>   vals <- withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
+>           (\h -> do c <- BS.hGetContents h
+>                     let mvv :: Either String (V.Vector (V.Vector Double))
+>                         mvv = decodeWith myOptions True c
+>                     case mvv of
+>                       Left s -> do putStrLn s
+>                                    return V.empty
+>                       Right vv -> return vv
+>           )
+>   let labels = fromList $ V.toList $ V.map (V.! 0) vals
+>       inds  = V.map (V.drop 1) vals
+>       rowsV = V.map (V.toList) xTrain
+>       nRows = V.length rowsV
+>       nCols = V.length $ V.head xTrain
+>       featuress = V.map (V.splitAt 11) inds
+>       tF x = log $ x + 1
+>       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
+>                      featuress
+>       foos :: Fractional a => V.Vector (V.Vector a)
+>       foos = V.map (V.map foo) xTrain
+>       x :: Fractional a => V.Vector a
+>       x = (foos V.! 0)
+>       y :: Double
+>       y = (toList labels)!!0
+>
+>       u :: V.Vector Double
+>       u = V.zipWith (+) initWs (V.map (* gamma) $ grad (logit (foos V.! 0)) initWs)
+>       f :: V.Vector Double -> Int -> V.Vector Double
+>       f ws n = V.zipWith (+) ws (V.map (* gamma) $ grad (logit (foos V.! n)) ws)
+>       bar = foldl f initWs [1..2000]
+>       baz = foldl f initWs [1..2010]
+>   putStrLn $ show $ x
+>   putStrLn $ show $ initWs
+>   putStrLn $ show $ u
+>   putStrLn $ show $ bar
+>   putStrLn $ show $ V.zipWith (-) bar baz
+>   putStrLn $ show $ V.maximum $ V.zipWith (-) bar baz
+
+
 
 ```{.dia width='400'}
 import NnClassifierDia
