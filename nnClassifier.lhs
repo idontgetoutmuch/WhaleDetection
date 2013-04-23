@@ -74,6 +74,7 @@ Some pragmas and imports required for the example code.
 
 > import Numeric.LinearAlgebra
 > import Numeric.AD
+> import Numeric.AD.Types
 > import Data.Traversable (Traversable)
 > import Data.Foldable (Foldable)
 > import Data.List
@@ -266,15 +267,16 @@ $$
 \end{align*}
 $$
 
-> foo :: Fractional a => Double -> a
-> foo = fromRational . toRational
->
 > gamma :: Double
 > gamma = 0.01
 >
 > logit :: Floating a => V.Vector a -> V.Vector a -> a
 > logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
 >
+> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> logLikelihood theta l x = l * log (logit x theta) + (1 - l) * log (1 - logit x theta)
+>
+> initWs :: V.Vector Double
 > initWs = V.replicate 11 0.1
 >
 > logReg :: IO ()
@@ -288,31 +290,19 @@ $$
 >                                    return V.empty
 >                       Right vv -> return vv
 >           )
->   let labels = fromList $ V.toList $ V.map (V.! 0) vals
+>   let labels = V.map (V.! 0) vals
 >       inds  = V.map (V.drop 1) vals
->       rowsV = V.map (V.toList) xTrain
->       nRows = V.length rowsV
->       nCols = V.length $ V.head xTrain
 >       featuress = V.map (V.splitAt 11) inds
 >       tF x = log $ x + 1
 >       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
 >                      featuress
->       foos :: Fractional a => V.Vector (V.Vector a)
->       foos = V.map (V.map foo) xTrain
->       x :: Fractional a => V.Vector a
->       x = (foos V.! 0)
->       y :: Double
->       y = (toList labels)!!0
->
->       u :: V.Vector Double
->       u = V.zipWith (+) initWs (V.map (* gamma) $ grad (logit (foos V.! 0)) initWs)
->       f :: V.Vector Double -> Int -> V.Vector Double
->       f ws n = V.zipWith (+) ws (V.map (* gamma) $ grad (logit (foos V.! n)) ws)
->       bar = foldl f initWs [1..2000]
->       baz = foldl f initWs [1..2010]
->   putStrLn $ show $ x
+>       delLogLikelihood l x = grad $
+>                              \theta -> logLikelihood theta (auto l) (V.map auto x)
+>       g theta (l, x) = V.zipWith (+) theta
+>                        (V.map (* gamma) $ delLogLikelihood l x theta)
+>       bar = V.foldl g initWs (V.zip (V.take 2000 labels) (V.take 2000 xTrain))
+>       baz = V.foldl g initWs (V.zip (V.take 2010 labels) (V.take 2010 xTrain))
 >   putStrLn $ show $ initWs
->   putStrLn $ show $ u
 >   putStrLn $ show $ bar
 >   putStrLn $ show $ V.zipWith (-) bar baz
 >   putStrLn $ show $ V.maximum $ V.zipWith (-) bar baz
@@ -850,6 +840,8 @@ Our neural net configuration. We wish to classify images which are $28
 
 > main :: IO ()
 > main = do
+>   linReg
+>   logReg
 >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
 >       w2  = randomWeightMatrix nNodes nDigits 42
 >       w1' :: (Random a, Floating a) => [[a]]
