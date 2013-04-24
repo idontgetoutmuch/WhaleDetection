@@ -103,9 +103,35 @@ FIXME: We should reference the GLM book.
 >   decDelimiter = fromIntegral (ord ',')
 >   }
 
+> gamma :: Double
+> gamma = 0.01
+
+> yhat :: Floating a => V.Vector a -> V.Vector a -> a
+> yhat x theta = V.sum $ V.zipWith (*) theta x
+>
+> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost theta y x = 0.5 * (y - yhat x theta)^2
+>
+> totalCost :: Floating a => V.Vector a -> V.Vector a -> V.Vector (V.Vector a) -> a
+> totalCost theta y x = (/l) $ V.sum $ V.zipWith (cost theta) y x
+>   where
+>     l = fromIntegral $ V.length y
+
+> delCost :: forall a. Floating a => a -> V.Vector a -> V.Vector a -> V.Vector a
+> delCost y x = grad $ \theta -> cost theta (auto y) (V.map auto x)
+>
+> delTotalCost :: forall a. Floating a => V.Vector a -> V.Vector (V.Vector a) -> V.Vector a -> V.Vector a
+> delTotalCost y x = grad $ \theta -> totalCost theta (V.map auto y) (V.map (V.map auto) x)
+
+Although we only have two independent variables, we need three
+parameters for the model.
+
+> initTheta :: V.Vector Double
+> initTheta = V.replicate 3 0.1
+
 > linReg :: IO ()
 > linReg = do
->   vals <- {- fmap (V.take 12) $ -} withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
+>   vals <- withFile "LinRegData.csv" ReadMode
 >           (\h -> do c <- BS.hGetContents h
 >                     let mvv :: Either String (V.Vector (V.Vector Double))
 >                         mvv = decodeWith myOptions True c
@@ -115,24 +141,38 @@ FIXME: We should reference the GLM book.
 >                       Right vv -> return vv
 >           )
 >
->   let labels = fromList $ V.toList $ V.map (V.! 0) vals
->       inds  = V.map (V.drop 1) vals
->       rowsV = V.map (V.toList) xTrain
->       nRows = V.length rowsV
->       nCols = V.length $ V.head xTrain
->       featuress = V.map (V.splitAt 11) inds
->       tF x = log $ x + 1
->       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
->                      featuress
->       indVrs = (><) nRows nCols $ concat $ V.toList rowsV
->       (coeffs, covMat, _) = multifit indVrs labels
->       ests =  V.map (\x -> fst $ multifit_est (fromList x) coeffs covMat) rowsV
->   -- putStrLn $ show ests
->   -- putStrLn $ show labels
->   let diffs = zipWith (-) (toList labels) (V.toList ests)
->   -- putStrLn $ show diffs
->   putStrLn $ show $ (sum (map (^2) diffs) / (fromIntegral $ length diffs))
+>   let y     = V.map (V.! 0) vals
+>       x     = V.map (V.drop 1) vals
+>       x'    = V.map (V.cons 1.0) x
 >
+>       g theta (y, x) = V.zipWith (-) theta (V.map (* gamma) $ delCost y x theta)
+>       bar = V.foldl g initTheta (V.zip y x')
+>       h theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>         where
+>           del = delTotalCost y x'
+>       hs = iterate h initTheta
+>
+>   putStrLn $ show y
+>   putStrLn $ show x'
+>   putStrLn ""
+>   putStrLn $ show $ take 10 $ drop 1000 hs
+>   putStrLn ""
+>   putStrLn $ show bar
+>
+>   let yHmat = fromList $ V.toList y
+>       rowsV = V.map (V.toList) x
+>       nRows = V.length rowsV
+>       nCols = V.length $ V.head x
+>       xHmat = (><) nRows nCols $ concat $ V.toList rowsV
+>
+>       (coeffs, covMat, _) = multifit xHmat yHmat
+>       ests =  V.map (\x -> fst $ multifit_est (fromList x) coeffs covMat) rowsV
+>       diffs = zipWith (-) (toList yHmat) (V.toList ests)
+>   putStrLn $ show $ (sum (map (^2) diffs) / (fromIntegral $ length diffs))
+>   putStrLn $ show coeffs
+>   putStrLn ""
+>   putStrLn "END LINEAR"
+>   putStrLn ""
 
 FIXME: Reference for neural net, multi-layer perceptron and logistic
 regression.
@@ -211,9 +251,6 @@ $$
 \end{align*}
 $$
 
-> gamma :: Double
-> gamma = 0.01
->
 > logit :: Floating a => V.Vector a -> V.Vector a -> a
 > logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
 >
