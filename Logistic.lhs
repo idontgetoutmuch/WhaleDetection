@@ -17,29 +17,6 @@ difference method or symbolic computation when it is neither.
 This article gives a very simple application of it in a machine
 learning / statistics context.
 
-Haskell Foreword
-----------------
-
-Some pragmas and imports required for the example code.
-
-> {-# OPTIONS_GHC -Wall                    #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
-
-> module Main (main) where
-
-
-
-> import Numeric.LinearAlgebra
-> import Numeric.AD
-> import Numeric.AD.Types
-> import Numeric.GSL.Fitting.Linear
-
-> import Data.Csv hiding (Field)
-> import qualified Data.ByteString.Lazy as BS
-> import System.IO
-> import Data.Char
-> import qualified Data.Vector as V
 
 Multivariate Linear Logistic Regression
 ---------------------------------------
@@ -98,6 +75,25 @@ $$
 
 FIXME: We should reference the GLM book.
 
+Some pragmas and imports required for the example code.
+
+> {-# OPTIONS_GHC -Wall                    #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
+> module Main (main) where
+
+> import Numeric.LinearAlgebra
+> import Numeric.AD
+> import Numeric.AD.Types
+> import Numeric.GSL.Fitting.Linear
+
+> import Data.Csv hiding (Field)
+> import qualified Data.ByteString.Lazy as BS
+> import System.IO
+> import Data.Char
+> import qualified Data.Vector as V
+
 > myOptions :: DecodeOptions
 > myOptions = defaultDecodeOptions {
 >   decDelimiter = fromIntegral (ord ',')
@@ -117,9 +113,6 @@ FIXME: We should reference the GLM book.
 >   where
 >     l = fromIntegral $ V.length y
 
-> delCost :: forall a. Floating a => a -> V.Vector a -> V.Vector a -> V.Vector a
-> delCost y x = grad $ \theta -> cost theta (auto y) (V.map auto x)
->
 > delTotalCost :: forall a. Floating a => V.Vector a -> V.Vector (V.Vector a) -> V.Vector a -> V.Vector a
 > delTotalCost y x = grad $ \theta -> totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
@@ -145,19 +138,21 @@ parameters for the model.
 >       x     = V.map (V.drop 1) vals
 >       x'    = V.map (V.cons 1.0) x
 >
->       g theta (y, x) = V.zipWith (-) theta (V.map (* gamma) $ delCost y x theta)
->       bar = V.foldl g initTheta (V.zip y x')
 >       h theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
 >         where
 >           del = delTotalCost y x'
->       hs = iterate h initTheta
 >
->   putStrLn $ show y
->   putStrLn $ show x'
+>       hs = iterate h initTheta
+>       diffs = map V.maximum $
+>               map (V.map abs) $
+>               zipWith (V.zipWith (-)) hs (tail hs)
+>       foo = dropWhile ((>= 0.0001) . fst) $ zip diffs hs
+>   putStrLn $ show $ head foo
+
+
+>
+>   putStrLn $ show $ take 10 $ drop 2000 hs
 >   putStrLn ""
->   putStrLn $ show $ take 10 $ drop 1000 hs
->   putStrLn ""
->   putStrLn $ show bar
 >
 >   let yHmat = fromList $ V.toList y
 >       rowsV = V.map (V.toList) x
