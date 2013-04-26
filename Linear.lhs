@@ -68,13 +68,45 @@ $$
 \frac{1}{n}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
 $$
 
+  [StochasticGradientDescent]: http://en.wikipedia.org/wiki/Stochastic_gradient_descent
+
+We can define a cost function:
+
+$$
+\mathcal{J}(\boldsymbol{\theta}) = \frac{1}{2n}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
+$$
+
+Clearly minimizing this will give the same result. The constant $1/2$ is to make the manipulation of the derivative easier. In our case, this is irrelevant as we are not going to derive the derivative explicitly but use automated differentiation.
+
+In order to mininize the cost function, we use the method of steepest ascent (or in this case descent): if $\boldsymbol{\theta}^i$ is a guess for the parameters of the model then we can improve the guess by stepping a small distance in the direction of greatest change.
+
+$$
+\boldsymbol{\theta}^{i+1} = \boldsymbol{\theta}^{i} - \gamma \nabla\mathcal{J}(\boldsymbol{\theta})
+$$
+
+$\gamma$ is some constant known in machine learning as the learning
+rate. It must be chosen to be large enough to ensure convergence
+within a reasonable number of steps but not so large that the
+algorithm fails to converge.
+
+When the number of observations is high then the cost of evaluating
+the cost function can be high; as a cheaper alternative we can use
+[stochastic gradient descent][StochasticGradientDescent]. Instead of
+taking the gradient with respect to all the observations, we take the
+gradient with respect to each observation in our data set. Of course
+if our data set is small we may have to use the data set several times
+to achieve convergence.
+
+Implementation
+--------------
+
 Some pragmas to warn us about potentially dangerous situations.
 
 > {-# OPTIONS_GHC -Wall                    #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 > {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
-> module Main (main) where
+> module Linear where
 
 Modules from the automatic differentiation [library][Package:ad].
 
@@ -95,25 +127,34 @@ generate some test data.
 > import Data.Random.Distribution.Uniform
 > import Data.RVar
 
+Our model: the predicted value of $y$ is $\hat{y}$ given the observations $\boldsymbol{x}$.
+
 > yhat :: Floating a =>
 >         V.Vector a ->
 >         V.Vector a -> a
 > yhat x theta = V.sum $ V.zipWith (*) theta x
->
+
+For each observation, the "cost" of the difference between the actual
+value of $y$ and its predicted value.
+
 > cost :: Floating a =>
 >         V.Vector a ->
 >         a ->
 >         V.Vector a
 >         -> a
 > cost theta y x = 0.5 * (y - yhat x theta)^2
->
+
+To find its gradient we merely apply the operator `grad`.
+
 > delCost :: Floating a =>
 >            a ->
 >            V.Vector a ->
 >            V.Vector a ->
 >            V.Vector a
 > delCost y x = grad $ \theta -> cost theta (auto y) (V.map auto x)
->
+
+We can use the single observation cost function to define the total cost function.
+
 > totalCost :: Floating a =>
 >              V.Vector a ->
 >              V.Vector a ->
@@ -123,77 +164,92 @@ generate some test data.
 >   where
 >     l = fromIntegral $ V.length y
 
+Again taking the derivative is straightforward.
+
 > delTotalCost :: Floating a =>
 >                 V.Vector a ->
 >                 V.Vector (V.Vector a) ->
 >                 V.Vector a ->
 >                 V.Vector a
-> delTotalCost y x = grad $ \theta -> totalCost theta (V.map auto y) (V.map (V.map auto) x)
+> delTotalCost y x = grad f
+>   where
+>     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
-Although we only have two independent variables, we need three
-parameters for the model.
+Now we can implement steepest descent.
 
-> initTheta :: V.Vector Double
-> initTheta = V.replicate 3 0.1
-
-> theta0, theta1, theta2 :: Double
-> theta0 = 0.0
-> theta1 = 0.6
-> theta2 = 0.7
->
-> createSample :: IO [Double]
-> createSample = do
->   x1 <- sampleRVar stdUniform
->   x2 <- sampleRVar stdUniform
->   let mu = theta0 + theta1 * x1 + theta2 * x2
->   y <- sampleRVar $ normal mu 0.01
->   return [y, x1, x2]
->
-> nSamples, nIters:: Int
-> nSamples = 100
-> nIters = 2000
-
-> gamma :: Double
-> gamma = 0.1
-
-> stepOnce :: V.Vector Double ->
+> stepOnce :: Double ->
+>             V.Vector Double ->
 >             V.Vector (V.Vector Double) ->
 >             V.Vector Double ->
 >             V.Vector Double
-> stepOnce y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
+> stepOnce gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delTotalCost y x
 
 > stepOnceStoch :: Double ->
+>                  Double ->
 >                  V.Vector Double ->
 >                  V.Vector Double ->
 >                  V.Vector Double
-> stepOnceStoch y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
+> stepOnceStoch gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delCost y x
->
+
+Let's try it out. First we need to generate some data.
+
+> createSample :: Double -> V.Vector Double -> IO (Double, V.Vector Double)
+> createSample sigma2 theta = do
+>   let l = V.length theta
+>   x <- V.sequence $ V.replicate (l - 1) $ sampleRVar stdUniform
+>   let mu = (theta V.! 0) + yhat x (V.drop 1 theta)
+>   y <- sampleRVar $ normal mu sigma2
+>   return (y, x)
+
+We create a model with two independent variables and thus three parameters.
+
+> actualTheta :: V.Vector Double
+> actualTheta = V.fromList [0.0, 0.6, 0.7]
+
+We initialise our algorithm with arbitrary values.
+
+> initTheta :: V.Vector Double
+> initTheta = V.replicate 3 0.1
+
+We give our model an arbitrary variance.
+
+> sigma2 :: Double
+> sigma2 = 0.01
+
+And set the learning rate and the number of iterations.
+
+> nSamples, nIters:: Int
+> nSamples = 100
+> nIters = 2000
+> gamma :: Double
+> gamma = 0.1
+
+Now we can run our example. For the constant parameter of our model
+(aka in machine learning as the bias) we ensure that the correspoding
+"independent variable" is always set to $1.0$.
 
 > main :: IO ()
 > main = do
->   vals <- sequence $ take nSamples $ repeat createSample
->   let y  = V.fromList $ map (!!0) vals
->       x  = V.fromList $ map (V.fromList) $ map (drop 1) vals
->       x' = V.map (V.cons 1.0) x
->       hs = iterate (stepOnce y x') initTheta
->       thetaUpdate theta = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) theta $ V.zip y x'
->       finalTheta1 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) initTheta $ V.zip y x'
->       finalTheta2 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta1 $ V.zip y x'
->       finalTheta3 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta2 $ V.zip y x'
->       finalTheta4 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta3 $ V.zip y x'
->
+>   vals <- V.sequence $ V.replicate nSamples $ createSample sigma2 actualTheta
+>   let y = V.map fst vals
+>       x = V.map snd vals
+>       x' =  V.map (V.cons 1.0) x
+>       hs = iterate (stepOnce gamma y x') initTheta
+>       update theta = V.foldl (\theta (y, x) -> stepOnceStoch gamma y x theta) theta $
+>                      V.zip y x'
 >   putStrLn $ show $ take 1 $ drop nIters hs
->   putStrLn $ show $ finalTheta1
->   putStrLn $ show $ finalTheta2
->   putStrLn $ show $ finalTheta3
->   putStrLn $ show $ finalTheta4
->   let f = foldr (.) id $ replicate 20 thetaUpdate
+>   let f = foldr (.) id $ replicate nSamples update
 >   putStrLn $ show $ f initTheta
 
+And we get quite reasonable estimates for the parameter.
 
+    [ghci]
+    main
 
 
