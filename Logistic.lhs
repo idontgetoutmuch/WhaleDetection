@@ -10,72 +10,65 @@ does not seem to be that widely used. Even experienced and
 knowledgeable practitioners often assume it is either a finite
 difference method or symbolic computation when it is neither.
 
-  [Backpropagation]: http://en.wikipedia.org/wiki/Backpropagation
-  [AutomaticDifferentiation]: http://en.wikipedia.org/wiki/Automatic_differentiation
-  [Domke2009a]: http://justindomke.wordpress.com/2009/02/17/automatic-differentiation-the-most-criminally-underused-tool-in-the-potential-machine-learning-toolbox/
-
 This article gives a very simple application of it in a machine
 learning / statistics context.
 
+Multivariate Linear Regression
+------------------------------
 
-Multivariate Linear Logistic Regression
----------------------------------------
-
-Let us consider linear regression first. We have
-
-$$
-\vec{y} = X\vec{w}
-$$
-
-We wish to minimise the loss function:
+We model a dependent variable linearly dependent on some set
+of independent variables in a noisy environment.
 
 $$
-\mathbb{J} = \vec{r}\cdot\vec{r}
+y^{(i)} = \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)} + \epsilon^{(i)}
 $$
 
 where
 
-$$
-\vec{r} = \vec{y} - X\vec{w}
-$$
+* $i$ runs from 1 to $n$, the number of observations;
 
-Differentiating:
+* $\epsilon^{(i)}$ are i.i.d. normal with mean $0$ and the same
+variance $\sigma^2$: $\epsilon^{(i)} \sim \mathcal{N} (0,\sigma^2)$;
 
-$$
-\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n r_i \frac{\partial r_i}{\partial w_j}
-$$
+* For each $i$, $\boldsymbol{x^{(i)}}$ is a column vector of size $m$ and
 
-We also have that:
+* $\boldsymbol{\theta}$ is a column vector also of size $m$.
 
-$$
-\frac{\partial r_i}{\partial w_j} = -X_{ij}
-$$
-
-Substituting:
+In other words:
 
 $$
-\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}w_k)(-X_{ij})
+p(y^{(i)} \mid \boldsymbol{x}^{(i)}; \boldsymbol{\theta}) =
+\frac{1}{\sqrt{2\pi}\sigma}\exp\big(\frac{-(y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2}{2\sigma^2}\big)
 $$
 
-The minimum of the loss function is reached when
+We can therefore write the likelihood function given all the observations as:
 
 $$
-\frac{\partial \mathbb{L}}{\partial w_j} = 0
+\mathcal{L}(\boldsymbol{\theta}; X, \boldsymbol{y}) =
+\prod_{i = 1}^n \frac{1}{\sqrt{2\pi}\sigma}\exp\big(\frac{-(y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2}{2\sigma^2}\big)
 $$
 
-Substituting again we have find that the values of $\vec{w} = \vec{\hat{w}}$ which
-minimise the loss function satisfy
+In order to find the best fitting parameters $\boldsymbol{\theta}$ we
+therefore need to maximize this function with respect to
+$\boldsymbol{\theta}$. The standard approach is to maximize the log
+likelihood which, since log is monotonic, will give the same result.
 
 $$
-2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}\hat{w}_k)(-X_{ij}) = 0
+\begin{align*}
+\mathcal{l}(\boldsymbol{\theta}) &= \log \mathcal{L}(\boldsymbol{\theta}) \\
+                                 &= \sum_{i=1}^n \log \frac{1}{\sqrt{2\pi}\sigma}\exp\big(\frac{-(y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2}{2\sigma^2}\big) \\
+                                 &= n\log \frac{1}{\sqrt{2\pi}\sigma} - \frac{1}{2\sigma^2}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
+\end{align*}
 $$
 
+Hence maximizing the likelihood is the same as minimizing the (biased)
+estimate of the variance:
 
-  [LogisticRegression]: http://en.wikipedia.org/wiki/Logistic_regression
+$$
+\frac{1}{n}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
+$$
 
-FIXME: We should reference the GLM book.
-
-Some pragmas and imports required for the example code.
+Some pragmas to warn us about potentially dangerous situations.
 
 > {-# OPTIONS_GHC -Wall                    #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
@@ -83,37 +76,58 @@ Some pragmas and imports required for the example code.
 
 > module Main (main) where
 
-> import Numeric.LinearAlgebra
+Modules from the automatic differentiation [library][Package:ad].
+
+  [Package:ad]: http://hackage.haskell.org/package/ad-3.4
+
 > import Numeric.AD
 > import Numeric.AD.Types
-> import Numeric.GSL.Fitting.Linear
 
-> import Data.Csv hiding (Field)
-> import qualified Data.ByteString.Lazy as BS
-> import System.IO
-> import Data.Char
 > import qualified Data.Vector as V
 
-> myOptions :: DecodeOptions
-> myOptions = defaultDecodeOptions {
->   decDelimiter = fromIntegral (ord ',')
->   }
+Some modules from a random number generator [library][Package:random-fu] as we will want to
+generate some test data.
 
-> gamma :: Double
-> gamma = 0.01
+  [Package:random-fu]: http://hackage.haskell.org/package/random-fu-0.2.4.0
 
-> yhat :: Floating a => V.Vector a -> V.Vector a -> a
+> import Data.Random ()
+> import Data.Random.Distribution.Normal
+> import Data.Random.Distribution.Uniform
+> import Data.RVar
+
+> yhat :: Floating a =>
+>         V.Vector a ->
+>         V.Vector a -> a
 > yhat x theta = V.sum $ V.zipWith (*) theta x
 >
-> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost :: Floating a =>
+>         V.Vector a ->
+>         a ->
+>         V.Vector a
+>         -> a
 > cost theta y x = 0.5 * (y - yhat x theta)^2
 >
-> totalCost :: Floating a => V.Vector a -> V.Vector a -> V.Vector (V.Vector a) -> a
+> delCost :: Floating a =>
+>            a ->
+>            V.Vector a ->
+>            V.Vector a ->
+>            V.Vector a
+> delCost y x = grad $ \theta -> cost theta (auto y) (V.map auto x)
+>
+> totalCost :: Floating a =>
+>              V.Vector a ->
+>              V.Vector a ->
+>              V.Vector (V.Vector a)
+>              -> a
 > totalCost theta y x = (/l) $ V.sum $ V.zipWith (cost theta) y x
 >   where
 >     l = fromIntegral $ V.length y
 
-> delTotalCost :: forall a. Floating a => V.Vector a -> V.Vector (V.Vector a) -> V.Vector a -> V.Vector a
+> delTotalCost :: Floating a =>
+>                 V.Vector a ->
+>                 V.Vector (V.Vector a) ->
+>                 V.Vector a ->
+>                 V.Vector a
 > delTotalCost y x = grad $ \theta -> totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
 Although we only have two independent variables, we need three
@@ -122,177 +136,64 @@ parameters for the model.
 > initTheta :: V.Vector Double
 > initTheta = V.replicate 3 0.1
 
-> linReg :: IO ()
-> linReg = do
->   vals <- withFile "LinRegData.csv" ReadMode
->           (\h -> do c <- BS.hGetContents h
->                     let mvv :: Either String (V.Vector (V.Vector Double))
->                         mvv = decodeWith myOptions True c
->                     case mvv of
->                       Left s -> do putStrLn s
->                                    return V.empty
->                       Right vv -> return vv
->           )
+> theta0, theta1, theta2 :: Double
+> theta0 = 0.0
+> theta1 = 0.6
+> theta2 = 0.7
 >
->   let y     = V.map (V.! 0) vals
->       x     = V.map (V.drop 1) vals
->       x'    = V.map (V.cons 1.0) x
+> createSample :: IO [Double]
+> createSample = do
+>   x1 <- sampleRVar stdUniform
+>   x2 <- sampleRVar stdUniform
+>   let mu = theta0 + theta1 * x1 + theta2 * x2
+>   y <- sampleRVar $ normal mu 0.01
+>   return [y, x1, x2]
 >
->       h theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
->         where
->           del = delTotalCost y x'
+> nSamples, nIters:: Int
+> nSamples = 100
+> nIters = 2000
+
+> gamma :: Double
+> gamma = 0.1
+
+> stepOnce :: V.Vector Double ->
+>             V.Vector (V.Vector Double) ->
+>             V.Vector Double ->
+>             V.Vector Double
+> stepOnce y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>   where
+>     del = delTotalCost y x
+
+> stepOnceStoch :: Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double
+> stepOnceStoch y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>   where
+>     del = delCost y x
 >
->       hs = iterate h initTheta
->       diffs = map V.maximum $
->               map (V.map abs) $
->               zipWith (V.zipWith (-)) hs (tail hs)
->       foo = dropWhile ((>= 0.0001) . fst) $ zip diffs hs
->   putStrLn $ show $ head foo
-
-
->
->   putStrLn $ show $ take 10 $ drop 2000 hs
->   putStrLn ""
->
->   let yHmat = fromList $ V.toList y
->       rowsV = V.map (V.toList) x
->       nRows = V.length rowsV
->       nCols = V.length $ V.head x
->       xHmat = (><) nRows nCols $ concat $ V.toList rowsV
->
->       (coeffs, covMat, _) = multifit xHmat yHmat
->       ests =  V.map (\x -> fst $ multifit_est (fromList x) coeffs covMat) rowsV
->       diffs = zipWith (-) (toList yHmat) (V.toList ests)
->   putStrLn $ show $ (sum (map (^2) diffs) / (fromIntegral $ length diffs))
->   putStrLn $ show coeffs
->   putStrLn ""
->   putStrLn "END LINEAR"
->   putStrLn ""
-
-FIXME: Reference for neural net, multi-layer perceptron and logistic
-regression.
-
-We can view neural nets or at least a multi layer perceptron as a
-generalisation of (multivariate) linear logistic regression. It is
-instructive to apply both backpropagation and automated
-differentiation to this simpler problem.
-
-Following [Ng][Ng:cs229], we define:
-
-  [Ng:cs229]: http://cs229.stanford.edu
-
-$$
-h_{\theta}(\vec{x}) = g(\theta^T\vec{x})
-$$
-
-where $\theta = (\theta_1, \ldots, \theta_m)$ and $g$ is a function
-such as the logistic function $g(x) = 1 / (1 + e^{-\theta^T\vec{x}})$
-or $\tanh$.
-
-$$
-y = tanh (\sum_{i=1}^{22} w_i * x_i + c)
-$$
-
-Next we define the probability of getting a particular value of the binary lable:
-
-$$
-\begin{align*}
-{\mathbb P}(y = 1 \mid \vec{x}; \theta) &= h_{\theta}(\vec{x}) \\
-{\mathbb P}(y = 0 \mid \vec{x}; \theta) &= 1 - h_{\theta}(\vec{x})
-\end{align*}
-$$
-
-which we can re-write as:
-
-$$
-p(y \mid \vec{x} ; \theta) = (h_{\theta}(\vec{x}))^y(1 - h_{\theta}(\vec{x}))^{1 - y}
-$$
-
-We wish to find the value of $\theta$ that gives the maximum
-probability to the observations. We do this by maximising the
-likelihood. Assuming we have $n$ observations the likelihood is:
-
-$$
-\begin{align*}
-L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta) \\
-          &= \prod_{i=1}^n (h_{\theta}(\vec{x}^{(i)}))^{y^{(i)}} (1 - h_{\theta}(\vec{x}^{(i)}))^{1 - y^{(i)}}
-\end{align*}
-$$
-
-It is standard practice to maximise the log likelihood which will give the same maximum as log is monotonic.
-
-$$
-\begin{align*}
-l(\theta) &= \log L(\theta) \\
-          &= \sum_{i=1}^n {y^{(i)}}\log h_{\theta}(\vec{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\theta}(\vec{x}^{(i)}))
-\end{align*}
-$$
-
-We now use [gradient descent][GradientDescent] to find the maximum by
-starting with a random value for the unknown parameter and then
-stepping in the steepest direction.
-
-  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
-
-$$
-\theta' = \theta + \gamma\nabla_{\theta}l(\theta)
-$$
-
-Differentiating the log likelihood, we have:
-
-$$
-\begin{align*}
-\frac{\partial}{\partial \theta_i}l(\theta) &= \big(y\frac{1}{g(\theta^T\vec{x})} - (1 - y)\frac{1}{1 - g(\theta^T\vec{x})}\big)\frac{\partial}{\partial \theta_i}g(\theta^T\vec{x})
-\end{align*}
-$$
-
-> logit :: Floating a => V.Vector a -> V.Vector a -> a
-> logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
->
-> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> logLikelihood theta l x = l * log (logit x theta) + (1 - l) * log (1 - logit x theta)
->
-> initWs :: V.Vector Double
-> initWs = V.replicate 11 0.1
->
-> logReg :: IO ()
-> logReg = do
->   vals <- withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
->           (\h -> do c <- BS.hGetContents h
->                     let mvv :: Either String (V.Vector (V.Vector Double))
->                         mvv = decodeWith myOptions True c
->                     case mvv of
->                       Left s -> do putStrLn s
->                                    return V.empty
->                       Right vv -> return vv
->           )
->   let labels = V.map (V.! 0) vals
->       inds  = V.map (V.drop 1) vals
->       featuress = V.map (V.splitAt 11) inds
->       tF x = log $ x + 1
->       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
->                      featuress
->       delLogLikelihood l x = grad $
->                              \theta -> logLikelihood theta (auto l) (V.map auto x)
->       g theta (l, x) = V.zipWith (+) theta
->                        (V.map (* gamma) $ delLogLikelihood l x theta)
->       bar = V.foldl g initWs (V.zip (V.take 2000 labels) (V.take 2000 xTrain))
->       baz = V.foldl g initWs (V.zip (V.take 2010 labels) (V.take 2010 xTrain))
->   putStrLn $ show $ initWs
->   putStrLn $ show $ bar
->   putStrLn $ show $ V.zipWith (-) bar baz
->   putStrLn $ show $ V.maximum $ V.zipWith (-) bar baz
-
-
-
-```{.dia width='400'}
-import NnClassifierDia
-dia = nn
-```
 
 > main :: IO ()
 > main = do
->   linReg
->   logReg
+>   vals <- sequence $ take nSamples $ repeat createSample
+>   let y  = V.fromList $ map (!!0) vals
+>       x  = V.fromList $ map (V.fromList) $ map (drop 1) vals
+>       x' = V.map (V.cons 1.0) x
+>       hs = iterate (stepOnce y x') initTheta
+>       thetaUpdate theta = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) theta $ V.zip y x'
+>       finalTheta1 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) initTheta $ V.zip y x'
+>       finalTheta2 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta1 $ V.zip y x'
+>       finalTheta3 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta2 $ V.zip y x'
+>       finalTheta4 = V.foldl (\theta (y, x) -> stepOnceStoch y x theta) finalTheta3 $ V.zip y x'
+>
+>   putStrLn $ show $ take 1 $ drop nIters hs
+>   putStrLn $ show $ finalTheta1
+>   putStrLn $ show $ finalTheta2
+>   putStrLn $ show $ finalTheta3
+>   putStrLn $ show $ finalTheta4
+>   let f = foldr (.) id $ replicate 20 thetaUpdate
+>   putStrLn $ show $ f initTheta
+
+
 
 
