@@ -54,11 +54,11 @@ $\boldsymbol{\theta}$. The standard approach is to maximize the log
 likelihood which, since log is monotonic, will give the same result.
 
 $$
-\begin{aligned}
-\lambda(\boldsymbol{\theta}) &= \log \mathcal{L}(\boldsymbol{\theta}) \\
-                             &= \sum_{i=1}^n \log \frac{1}{\sqrt{2\pi}\sigma}\exp\big(\frac{-(y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2}{2\sigma^2}\big) \\
-                             &= n\log \frac{1}{\sqrt{2\pi}\sigma} - \frac{1}{2\sigma^2}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
-\end{aligned}
+\begin{align*}
+\mathcal{l}(\boldsymbol{\theta}) &= \log \mathcal{L}(\boldsymbol{\theta}) \\
+                                 &= \sum_{i=1}^n \log \frac{1}{\sqrt{2\pi}\sigma}\exp\big(\frac{-(y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2}{2\sigma^2}\big) \\
+                                 &= n\log \frac{1}{\sqrt{2\pi}\sigma} - \frac{1}{2\sigma^2}\sum_{i=1}^n (y^{(i)} - \boldsymbol{\theta}^{T}\boldsymbol{x}^{(i)})^2
+\end{align*}
 $$
 
 Hence maximizing the likelihood is the same as minimizing the (biased)
@@ -171,9 +171,7 @@ Again taking the derivative is straightforward.
 >                 V.Vector (V.Vector a) ->
 >                 V.Vector a ->
 >                 V.Vector a
-> delTotalCost y x = grad f
->   where
->     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
+> delTotalCost y x = grad $ \theta -> totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
 Now we can implement steepest descent.
 
@@ -182,8 +180,7 @@ Now we can implement steepest descent.
 >             V.Vector (V.Vector Double) ->
 >             V.Vector Double ->
 >             V.Vector Double
-> stepOnce gamma y x theta =
->   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+> stepOnce gamma y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delTotalCost y x
 
@@ -192,8 +189,7 @@ Now we can implement steepest descent.
 >                  V.Vector Double ->
 >                  V.Vector Double ->
 >                  V.Vector Double
-> stepOnceStoch gamma y x theta =
->   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+> stepOnceStoch gamma y x theta = V.zipWith (-) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delCost y x
 
@@ -236,23 +232,131 @@ Now we can run our example. For the constant parameter of our model
 
 > main :: IO ()
 > main = do
->   vals <- V.sequence $
->           V.replicate nSamples $
->           createSample sigma2 actualTheta
->   let y = V.map fst vals
->       x = V.map snd vals
+>   vals' <- V.sequence $ V.replicate nSamples $ createSample sigma2 actualTheta
+>   let y = V.map fst vals'
+>       x = V.map snd vals'
 >       x' =  V.map (V.cons 1.0) x
 >       hs = iterate (stepOnce gamma y x') initTheta
->       update theta = V.foldl f theta $ V.zip y x'
->         where
->           f theta (y, x) = stepOnceStoch gamma y x theta
+>       update theta = V.foldl (\theta (y, x) -> stepOnceStoch gamma y x theta) theta $
+>                      V.zip y x'
 >   putStrLn $ show $ take 1 $ drop nIters hs
 >   let f = foldr (.) id $ replicate nSamples update
 >   putStrLn $ show $ f initTheta
 
-And we get quite reasonable estimates for the parameter.
 
-    [ghci]
-    main
+
+We can view neural nets or at least a multi layer perceptron as a
+generalisation of (multivariate) linear logistic regression. It is
+instructive to apply both backpropagation and automated
+differentiation to this simpler problem.
+
+Following [Ng][Ng:cs229], we define:
+
+  [Ng:cs229]: http://cs229.stanford.edu
+
+$$
+h_{\theta}(\vec{x}) = g(\theta^T\vec{x})
+$$
+
+where $\theta = (\theta_1, \ldots, \theta_m)$ and $g$ is a function
+such as the logistic function $g(x) = 1 / (1 + e^{-\theta^T\vec{x}})$
+or $\tanh$.
+
+Next we define the probability of getting a particular value of the binary lable:
+
+$$
+\begin{align*}
+{\mathbb P}(y = 1 \mid \vec{x}; \theta) &= h_{\theta}(\vec{x}) \\
+{\mathbb P}(y = 0 \mid \vec{x}; \theta) &= 1 - h_{\theta}(\vec{x})
+\end{align*}
+$$
+
+which we can re-write as:
+
+$$
+p(y \mid \vec{x} ; \theta) = (h_{\theta}(\vec{x}))^y(1 - h_{\theta}(\vec{x}))^{1 - y}
+$$
+
+We wish to find the value of $\theta$ that gives the maximum
+probability to the observations. We do this by maximising the
+likelihood. Assuming we have $n$ observations the likelihood is:
+
+$$
+\begin{align*}
+L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta) \\
+          &= \prod_{i=1}^n (h_{\theta}(\vec{x}^{(i)}))^{y^{(i)}} (1 - h_{\theta}(\vec{x}^{(i)}))^{1 - y^{(i)}}
+\end{align*}
+$$
+
+It is standard practice to maximise the log likelihood which will give the same maximum as log is monotonic.
+
+$$
+\begin{align*}
+l(\theta) &= \log L(\theta) \\
+          &= \sum_{i=1}^n {y^{(i)}}\log h_{\theta}(\vec{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\theta}(\vec{x}^{(i)}))
+\end{align*}
+$$
+
+We now use [gradient descent][GradientDescent] to find the maximum by
+starting with a random value for the unknown parameter and then
+stepping in the steepest direction.
+
+  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
+
+$$
+\theta' = \theta + \gamma\nabla_{\theta}l(\theta)
+$$
+
+Differentiating the log likelihood, we have:
+
+$$
+\begin{align*}
+\frac{\partial}{\partial \theta_i}l(\theta) &= \big(y\frac{1}{g(\theta^T\vec{x})} - (1 - y)\frac{1}{1 - g(\theta^T\vec{x})}\big)\frac{\partial}{\partial \theta_i}g(\theta^T\vec{x})
+\end{align*}
+$$
+
+> logit :: Floating a => V.Vector a -> V.Vector a -> a
+> logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
+>
+> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> logLikelihood theta l x = l * log (logit x theta) + (1 - l) * log (1 - logit x theta)
+>
+> initWs :: V.Vector Double
+> initWs = V.replicate 11 0.1
+>
+> delLogLikelihood:: Floating a =>
+>                    a ->
+>                    V.Vector a ->
+>                    V.Vector a ->
+>                    V.Vector a
+> delLogLikelihood l x = grad $
+>                        \theta -> logLikelihood theta (auto l) (V.map auto x)
+>
+> g :: V.Vector Double ->
+>      (Double, V.Vector Double) ->
+>      V.Vector Double
+> g theta (l, x) = V.zipWith (+) theta
+>                  (V.map (* gamma) $ delLogLikelihood l x theta)
+>
+> logReg :: IO ()
+> logReg = do
+>   let vals = undefined
+>   let labels = V.map (V.! 0) vals
+>       inds  = V.map (V.drop 1) vals
+>       featuress = V.map (V.splitAt 11) inds
+>       tF x = log $ x + 1
+>       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
+>                      featuress
+>       delLogLikelihood l x = grad $
+>                              \theta -> logLikelihood theta (auto l) (V.map auto x)
+>       g theta (l, x) = V.zipWith (+) theta
+>                        (V.map (* gamma) $ delLogLikelihood l x theta)
+>       bar = V.foldl g initWs (V.zip (V.take 2000 labels) (V.take 2000 xTrain))
+>       baz = V.foldl g initWs (V.zip (V.take 2010 labels) (V.take 2010 xTrain))
+>   putStrLn $ show $ initWs
+>   putStrLn $ show $ bar
+>   putStrLn $ show $ V.zipWith (-) bar baz
+>   putStrLn $ show $ V.maximum $ V.zipWith (-) bar baz
+
 
 
