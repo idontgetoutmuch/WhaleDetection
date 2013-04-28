@@ -5,14 +5,17 @@
 Introduction
 ------------
 
-Having shown how to us automated differentiation to estimate
-parameters in the case of linear regression let us now turn our
-attention to the problem of classification. For example, we might have
-some data about people's social networking such as volume of twitter
-interactions and number of twitter followers together with a label
-which represents a human judgement about which one of the two
-individuals is more influential. We would like to predict, for a pair
-of individuals, the human judgement on who is more influential.
+Having shown how to use automated differentiation to estimate
+parameters in the case of [linear regression][blog:linearRegression]
+let us now turn our attention to the problem of classification. For
+example, we might have some data about people's social networking such
+as volume of twitter interactions and number of twitter followers
+together with a label which represents a human judgement about which
+one of the two individuals is more influential. We would like to
+predict, for a pair of individuals, the human judgement on who is more
+influential.
+
+  [blog:linearRegression]: http://idontgetoutmuch.wordpress.com/2013/04/26/regression-and-automated-differentiation-4
 
 Logistic Regression
 ------------------------------
@@ -62,14 +65,10 @@ $$
 \end{align*}
 $$
 
-In order to maximize the cost function, we use the method of steepest
-ascent: if $\boldsymbol{\theta}^i$ is a guess for the parameters of
+In order to maximize the cost function, we again use the method of [steepest
+ascent][GradientDescent]: if $\boldsymbol{\theta}^i$ is a guess for the parameters of
 the model then we can improve the guess by stepping a small distance
 in the direction of greatest change.
-
-We now use [gradient descent][GradientDescent] to find the maximum by
-starting with a random value for the unknown parameter and then
-stepping in the steepest direction.
 
 $$
 \boldsymbol{\theta}^{i+1} = \boldsymbol{\theta}^{i} - \gamma \nabla\mathcal{J}(\boldsymbol{\theta})
@@ -88,9 +87,24 @@ gradient with respect to each observation in our data set. Of course
 if our data set is small we may have to use the data set several times
 to achieve convergence.
 
+When the observations / training data are linearly separable then the
+magnitude of the parameters can grow without bound as the
+(parametized) logistic function then tends to the Heaviside / step
+function. Moreover, it is obvious that there can be more than one
+separaing hyperplane in this circumstance. To circumvent these
+infelicities, one instead maximizes a penalized log likelihood
+function:
+
+$$
+\sum_{i=1}^n {y^{(i)}}\log h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)})) - \frac{\beta}{2}\|\boldsymbol{\theta}\|^2
+$$
+
+See [Bishop][bishop:ml] and [Mitchell][mitchell:ml] for further details.
 
   [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
   [StochasticGradientDescent]: http://en.wikipedia.org/wiki/Stochastic_gradient_descent
+  [bishop:ml]: http://research.microsoft.com/en-us/um/people/cmbishop/prml/
+  [mitchell:ml]: http://www.cs.cmu.edu/%7Etom/mlbook.html
 
 Implementation
 --------------
@@ -126,21 +140,26 @@ generate some test data.
 Our model: the probability that $y$ has the label 1 given the observations $\boldsymbol{x}$.
 
 > logit :: Floating a =>
->          V.Vector a ->
->          V.Vector a -> a
-> logit x theta = 1 / (1 + exp (negate $ V.sum $ V.zipWith (*) theta x))
+>          a -> a
+> logit x = 1 / (1 + exp (negate x))
 
 For each observation, the log likelihood:
 
 > logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> logLikelihood theta y x = y * log (logit x theta) + (1 - y) * log (1 - logit x theta)
+> logLikelihood theta y x = y * log (logit z) + (1 - y) * log (1 - logit z)
+>   where
+>     z = V.sum $ V.zipWith (*) theta x
 
 > totalLogLikelihood :: Floating a =>
 >                       V.Vector a ->
 >                       V.Vector a ->
 >                       V.Vector (V.Vector a) ->
 >                       a
-> totalLogLikelihood theta y x = V.sum $ V.zipWith (logLikelihood theta) y x
+> totalLogLikelihood theta y x = a - beta * b
+>   where
+>     l = fromIntegral $ V.length y
+>     a = V.sum $ V.zipWith (logLikelihood theta) y x
+>     b = (/2) $ sqrt $ V.sum $ V.map (^2) theta
 >
 > estimates :: (Floating a, Ord a) =>
 >              V.Vector a ->
@@ -183,13 +202,10 @@ Let's try it out. First we need to generate some data.
 >        V.replicate (l - 1) $
 >        sampleRVar $
 >        uniform (negate range) range
->   putStrLn $ show x
->   putStrLn $ show $ logit x theta
 >   -- isCorrectlyClassified <- sampleRVar $
 >   --                          bernoulli $
 >   --                          logit x theta
->   let foo = fromIntegral $ fromEnum (logit x theta > 0.5)
->   putStrLn $ show foo
+>   let foo = fromIntegral $ fromEnum (logit (V.sum $ V.zipWith (*) x theta) > 0.5)
 >   return (foo {- isCorrectlyClassified -}, x)
 
 We create a model with two independent variables and thus three parameters.
@@ -206,19 +222,51 @@ We initialise our algorithm with arbitrary values.
 > nSamples = 10
 >
 > gamma :: Double
-> gamma = 0.01
+> gamma = 0.1
+>
+> beta :: Floating a => a
+> beta = 1.0 -- 0.2
+>
+> nIters :: Int
+> nIters = 8000
 
 Now we can run our example. For the constant parameter of our model
 (aka in machine learning as the bias) we ensure that the correspoding
 "independent variable" is always set to $1.0$.
 
+> vals' = V.fromList [(1.0,V.fromList [1.0,0.8398408402187676]),
+>                    (0.0,V.fromList [1.0,-0.7898071951778092]),
+>                    (0.0,V.fromList [1.0,-0.17050296198033]),
+>                    (1.0,V.fromList [1.0,0.6111648945366537]),
+>                    (1.0,V.fromList [1.0,3.80874635456423e-2]),
+>                    (0.0,V.fromList [1.0,-7.704973140507665e-2]),
+>                    (1.0,V.fromList [1.0,0.9628401937082884]),
+>                    (0.0,V.fromList [1.0,-0.40815093501104327]),
+>                    (0.0,V.fromList [1.0,-0.473189616584647]),
+>                    (0.0,V.fromList [1.0,-0.5489296514363704])]
+
+> vals = V.fromList [(1.0,V.fromList [1.0, 1.0]),
+>                    (0.0,V.fromList [1.0,-1.0]),
+>                    (0.0,V.fromList [1.0,-1.0]),
+>                    (1.0,V.fromList [1.0, 1.0]),
+>                    (1.0,V.fromList [1.0, 1.0]),
+>                    (0.0,V.fromList [1.0,-1.0]),
+>                    (1.0,V.fromList [1.0, 1.0]),
+>                    (0.0,V.fromList [1.0,-1.0]),
+>                    (0.0,V.fromList [1.0,-1.0]),
+>                    (0.0,V.fromList [1.0,-1.0])]
+
 > main :: IO ()
 > main = do
->   vals <- V.sequence $ V.replicate nSamples $ createSample 1.0 actualTheta
->   -- putStrLn $ show vals
+>   -- vals <- V.sequence $ V.replicate nSamples $ createSample 1.0 actualTheta
+>   putStrLn $ show vals
 >   let u = V.map fst vals
 >       v = V.map snd vals
->       w = estimates u v initTheta
+>   --     w = estimates u v initTheta
 >   -- putStrLn $ show $ take 10 w
 >   let hs = iterate (stepOnce gamma u v) initTheta
->   putStrLn $ show $ take 10 $ drop 100 hs
+>       js = map (\theta -> totalLogLikelihood theta u v) hs
+>       is = map (delTotalLogLikelihood u v) hs
+>   putStrLn $ show $ take 10 $ drop nIters hs
+>   putStrLn $ show $ take 10 $ drop nIters is
+>   putStrLn $ show $ take 10 $ drop nIters js
