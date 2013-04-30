@@ -96,7 +96,7 @@ infelicities, we instead maximize a penalized log likelihood
 function:
 
 $$
-\sum_{i=1}^n {y^{(i)}}\log h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)})) - \frac{\beta}{2}\|\boldsymbol{\theta}\|^2
+\sum_{i=1}^n {y^{(i)}}\log h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)})) - \frac{\delta}{2}\|\boldsymbol{\theta}\|^2
 $$
 
 See [Bishop][bishop:ml] and [Mitchell][mitchell:ml] for further details.
@@ -111,11 +111,16 @@ Implementation
 
 Some pragmas to warn us about potentially dangerous situations.
 
-> {-# OPTIONS_GHC -Wall                    #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+FIXME: Replace the pragmas!!!
 
-> module Logistic (main) where
+> {-# LANGUAGE TupleSections #-}
+>
+> module Logistic ( betas
+>                 , main
+>                 , a
+>                 , b
+>                 , nSamples
+>                 ) where
 
 Modules from the automatic differentiation [library][Package:ad].
 
@@ -126,15 +131,19 @@ Modules from the automatic differentiation [library][Package:ad].
 
 > import qualified Data.Vector as V
 > import Control.Monad
+> import Control.Monad.State
+> import Data.List
+> import Text.Printf
 
 Some modules from a random number generator [library][Package:random-fu] as we will want to
 generate some test data.
 
   [Package:random-fu]: http://hackage.haskell.org/package/random-fu-0.2.4.0
 
+> import System.Random
 > import Data.Random ()
 > import Data.Random.Distribution.Uniform
-> import Data.Random.Distribution.Bernoulli
+> import Data.Random.Distribution.Beta
 > import Data.RVar
 
 Our model: the probability that $y$ has the label 1 given the observations $\boldsymbol{x}$.
@@ -155,7 +164,7 @@ For each observation, the log likelihood:
 >                       V.Vector a ->
 >                       V.Vector (V.Vector a) ->
 >                       a
-> totalLogLikelihood theta y x = a - beta * b
+> totalLogLikelihood theta y x = a - delta * b
 >   where
 >     l = fromIntegral $ V.length y
 >     a = V.sum $ V.zipWith (logLikelihood theta) y x
@@ -190,23 +199,117 @@ To find its gradient we merely apply the operator `grad`.
 
 Now we can implement steepest descent.
 
-Let's try it out. First we need to generate some data.
+Let's try it out. First we need to generate some data.  Rather
+arbitrarily let us create some populations from the `beta`
+distribution.
 
-> createSample :: Double -> V.Vector Double -> IO (Double, V.Vector Double)
-> createSample range theta = do
->   let l = V.length theta
->   x <- liftM (V.cons 1.0) $
->        V.sequence $
->        V.replicate (l - 1) $
->        sampleRVar $
->        uniform (negate range) range
->   -- isCorrectlyClassified <- sampleRVar $
->   --                          bernoulli $
->   --                          logit x theta
->   let foo = fromIntegral $ fromEnum (logit (V.sum $ V.zipWith (*) x theta) > 0.5)
->   return (foo {- isCorrectlyClassified -}, x)
+> betas :: Int -> Double -> Double -> [Double]
+> betas n a b =
+>   fst $ runState (replicateM n (sampleRVar (beta a b))) (mkStdGen seed)
+>     where
+>       seed = 0
 
-We create a model with two independent variables and thus three parameters.
+We can plot the populations we wish to distinguish by sampling.
+
+> a          = 15
+> b          = 6
+> nSamples   = 100000
+
+> sample0 = betas nSamples a b
+> sample1 = betas nSamples b a
+
+Note that in this case we could come up with a classification rule by
+inspecting the histograms. Furthermore, the populations overlap which
+means we will inevitably mis-classify some observations.
+
+```{.dia width='800'}
+{-# LANGUAGE TupleSections #-}
+
+import Diagrams.Prelude
+import Data.Colour (withOpacity)
+import Logistic
+
+import Data.Random ()
+import Data.Random.Distribution.Beta
+import Data.RVar
+
+import System.Random
+
+import Data.List
+import qualified Data.IntMap as IntMap
+
+import Control.Monad.State
+
+import Text.Printf
+
+tickSize   = 0.1
+nCells     = 100
+cellColour0 = red  `withOpacity` 0.5
+cellColour1 = blue `withOpacity` 0.5
+
+background = rect 1.1 1.1 # translate (r2 (0.5, 0.5))
+
+test tickSize nCells a0 b0 a1 b1 nSamples =
+  ticks [0.0, tickSize..1.0] <>
+  hist cellColour0 xs <>
+  hist cellColour1 ys <>
+  background
+    where
+      xs = IntMap.elems $
+      	   IntMap.map fromIntegral $
+           histogram nCells $
+           betas nSamples a0 b0
+      ys = IntMap.elems $
+      	   IntMap.map fromIntegral $
+           histogram nCells $
+           betas nSamples a1 b1
+
+hist cellColour xs = scaleX sX . scaleY sY . position $ hist' where
+    ysmax = fromInteger . ceiling $ maximum xs
+    ysmin = fromInteger . floor $ minimum xs
+    xsmax = fromIntegral $ length xs
+    xsmin = 0.0
+    sX = 1 / (xsmax - xsmin)
+    sY = 1 / (ysmax - ysmin)
+    hist' = zip (map p2 $ map (,0) $
+            map fromInteger [0..]) (map (cell 1) xs)
+    cell w h = alignB $ rect w h
+                      # fcA cellColour
+                      # lc white
+                      # lw 0.001
+
+ticks xs = (mconcat $ map tick xs)  <> line
+  where
+    maxX   = maximum xs
+    line   = fromOffsets [r2 (maxX, 0)]
+    tSize  = maxX / 100
+    tick x = endpt # translate tickShift
+      where
+        tickShift = r2 (x, 0)
+        endpt     = topLeftText (printf "%.2f" x) # fontSize (tSize * 2) <>
+                    circle tSize # fc red  # lw 0
+
+histogram :: Int -> [Double] -> IntMap.IntMap Int
+histogram nCells xs =
+  foldl' g emptyHistogram xs
+    where
+      g h x          = IntMap.insertWith (+) (makeCell nCells x) 1 h
+      emptyHistogram = IntMap.fromList $ zip [0 .. nCells - 1] (repeat 0)
+      makeCell m     = floor . (* (fromIntegral m))
+
+dia = test tickSize nCells a b b a nSamples
+```
+
+> mixSamples :: [Double] -> [Double] -> [(Double, Double)]
+> mixSamples xs ys = unfoldr g ((map (0,) xs), (map (1,) ys))
+>   where
+>     g ([], [])   = Nothing
+>     g ((x:xs), ys) = Just $ (x, (ys, xs))
+
+> createSample :: V.Vector (Double, Double)
+> createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
+
+We create a model with one independent variables and thus two parameters.
 
 > actualTheta :: V.Vector Double
 > actualTheta = V.fromList [0.0, 1.0]
@@ -215,56 +318,47 @@ We initialise our algorithm with arbitrary values.
 
 > initTheta :: V.Vector Double
 > initTheta = V.replicate (V.length actualTheta) 0.1
->
-> nSamples :: Int
-> nSamples = 10
->
+
+Set the learning rate, the strength of the penalty term and the number
+of iterations.
+
 > gamma :: Double
-> gamma = 0.1
+> gamma = 0.04
 >
-> beta :: Floating a => a
-> beta = 1.0 -- 0.2
+> delta :: Floating a => a
+> delta = 1.0
 >
 > nIters :: Int
-> nIters = 8000
+> nIters = 4000
 
 Now we can run our example. For the constant parameter of our model
 (aka in machine learning as the bias) we ensure that the correspoding
 "independent variable" is always set to $1.0$.
 
-> vals' = V.fromList [(1.0,V.fromList [1.0,0.8398408402187676]),
->                    (0.0,V.fromList [1.0,-0.7898071951778092]),
->                    (0.0,V.fromList [1.0,-0.17050296198033]),
->                    (1.0,V.fromList [1.0,0.6111648945366537]),
->                    (1.0,V.fromList [1.0,3.80874635456423e-2]),
->                    (0.0,V.fromList [1.0,-7.704973140507665e-2]),
->                    (1.0,V.fromList [1.0,0.9628401937082884]),
->                    (0.0,V.fromList [1.0,-0.40815093501104327]),
->                    (0.0,V.fromList [1.0,-0.473189616584647]),
->                    (0.0,V.fromList [1.0,-0.5489296514363704])]
-
-> vals = V.fromList [(1.0,V.fromList [1.0, 1.0]),
->                    (0.0,V.fromList [1.0,-1.0]),
->                    (0.0,V.fromList [1.0,-1.0]),
->                    (1.0,V.fromList [1.0, 1.0]),
->                    (1.0,V.fromList [1.0, 1.0]),
->                    (0.0,V.fromList [1.0,-1.0]),
->                    (1.0,V.fromList [1.0, 1.0]),
->                    (0.0,V.fromList [1.0,-1.0]),
->                    (0.0,V.fromList [1.0,-1.0]),
->                    (0.0,V.fromList [1.0,-1.0])]
+> vals :: V.Vector (Double, V.Vector Double)
+> vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
 
 > main :: IO ()
 > main = do
->   -- vals <- V.sequence $ V.replicate nSamples $ createSample 1.0 actualTheta
->   putStrLn $ show vals
 >   let u = V.map fst vals
 >       v = V.map snd vals
->   --     w = estimates u v initTheta
->   -- putStrLn $ show $ take 10 w
->   let hs = iterate (stepOnce gamma u v) initTheta
->       js = map (\theta -> totalLogLikelihood theta u v) hs
->       is = map (delTotalLogLikelihood u v) hs
->   putStrLn $ show $ take 10 $ drop nIters hs
->   putStrLn $ show $ take 10 $ drop nIters is
->   putStrLn $ show $ take 10 $ drop nIters js
+>       hs = iterate (stepOnce gamma u v) initTheta
+>       xs = V.map snd vals
+>       theta = head $ drop nIters hs
+>   printf "theta_0 = %5.2f, theta_1 = %5.2f\n" (theta V.! 0) (theta V.! 1)
+>   let predProbs  = V.map (\x -> logit $ V.sum $ V.zipWith (*) theta x) xs
+>       mismatches = V.filter (> 0.5) $
+>                    V.map abs $
+>                    V.zipWith (-) actuals preds
+>         where
+>           actuals = V.map fst vals
+>           preds   = V.map (\x -> fromIntegral $ fromEnum (x > 0.5)) predProbs
+>   let lActuals, lMisMatches :: Double
+>       lActuals    = fromIntegral $ V.length vals
+>       lMisMatches = fromIntegral $ V.length mismatches
+>   printf "%5.2f%% correct\n" $ 100.0 *  (lActuals - lMisMatches) / lActuals
+
+And we get quite reasonable estimates:
+
+    [ghci]
+    main
