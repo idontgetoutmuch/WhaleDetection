@@ -92,7 +92,7 @@ magnitude of the parameters can grow without bound as the
 (parametized) logistic function then tends to the Heaviside / step
 function. Moreover, it is obvious that there can be more than one
 separaing hyperplane in this circumstance. To circumvent these
-infelicities, one instead maximizes a penalized log likelihood
+infelicities, we instead maximize a penalized log likelihood
 function:
 
 $$
@@ -185,8 +185,6 @@ For each observation, the log likelihood:
 > stepOnce gamma y x theta = V.zipWith (+) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delTotalLogLikelihood y x
-
-
 
 To find its gradient we merely apply the operator `grad`.
 
