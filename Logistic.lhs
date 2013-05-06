@@ -50,19 +50,19 @@ probability to the observations. We do this by maximising the
 likelihood. Assuming we have $n$ observations the likelihood is:
 
 $$
-\begin{align*}
+\begin{aligned}
 \mathcal{L}(\boldsymbol{\theta}) &= \prod_{i=1}^n p(y^{(i)} \mid {\boldsymbol{x}}^{(i)} ; \boldsymbol{\theta}) \\
           &= \prod_{i=1}^n (h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}))^{y^{(i)}} (1 - h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}))^{1 - y^{(i)}}
-\end{align*}
+\end{aligned}
 $$
 
 It is standard practice to maximise the log likelihood which will give the same maximum as log is monotonic.
 
 $$
-\begin{align*}
+\begin{aligned}
 \lambda(\boldsymbol{\theta}) &= \log \mathcal{L}(\boldsymbol{\theta}) \\
           &= \sum_{i=1}^n {y^{(i)}}\log h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\boldsymbol{\theta}}(\boldsymbol{x}^{(i)}))
-\end{align*}
+\end{aligned}
 $$
 
 In order to maximize the cost function, we again use the method of [steepest
@@ -111,8 +111,11 @@ Implementation
 
 Some pragmas to warn us about potentially dangerous situations.
 
-FIXME: Replace the pragmas!!!
-
+> {-# OPTIONS_GHC -Wall                    #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+> {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+>
 > {-# LANGUAGE TupleSections #-}
 >
 > module Logistic ( betas
@@ -142,7 +145,6 @@ generate some test data.
 
 > import System.Random
 > import Data.Random ()
-> import Data.Random.Distribution.Uniform
 > import Data.Random.Distribution.Beta
 > import Data.RVar
 
@@ -155,7 +157,8 @@ Our model: the probability that $y$ has the label 1 given the observations $\bol
 For each observation, the log likelihood:
 
 > logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> logLikelihood theta y x = y * log (logit z) + (1 - y) * log (1 - logit z)
+> logLikelihood theta y x = y * log (logit z) +
+>                           (1 - y) * log (1 - logit z)
 >   where
 >     z = V.sum $ V.zipWith (*) theta x
 
@@ -164,19 +167,14 @@ For each observation, the log likelihood:
 >                       V.Vector a ->
 >                       V.Vector (V.Vector a) ->
 >                       a
-> totalLogLikelihood theta y x = a - delta * b
+> totalLogLikelihood theta y x = (a - delta * b) / l
 >   where
 >     l = fromIntegral $ V.length y
 >     a = V.sum $ V.zipWith (logLikelihood theta) y x
->     b = (/2) $ sqrt $ V.sum $ V.map (^2) theta
->
-> estimates :: (Floating a, Ord a) =>
->              V.Vector a ->
->              V.Vector (V.Vector a) ->
->              V.Vector a ->
->              [V.Vector a]
-> estimates y x = gradientAscent $
->                 \theta -> totalLogLikelihood theta (V.map auto y) (V.map (V.map auto) x)
+>     b = (/2) $ V.sum $ V.map (^2) theta
+
+As before we can implement steepest descent using the `grad` function.
+
 > delTotalLogLikelihood :: Floating a =>
 >                 V.Vector a ->
 >                 V.Vector (V.Vector a) ->
@@ -184,20 +182,31 @@ For each observation, the log likelihood:
 >                 V.Vector a
 > delTotalLogLikelihood y x = grad f
 >   where
->     f theta = totalLogLikelihood theta (V.map auto y) (V.map (V.map auto) x)
+>     f theta = totalLogLikelihood theta
+>                                  (V.map auto y)
+>                                  (V.map (V.map auto) x)
 >
 > stepOnce :: Double ->
 >             V.Vector Double ->
 >             V.Vector (V.Vector Double) ->
 >             V.Vector Double ->
 >             V.Vector Double
-> stepOnce gamma y x theta = V.zipWith (+) theta (V.map (* gamma) $ del theta)
+> stepOnce gamma y x theta =
+>   V.zipWith (+) theta (V.map (* gamma) $ del theta)
 >   where
 >     del = delTotalLogLikelihood y x
 
-To find its gradient we merely apply the operator `grad`.
+Or even easier just use the library function `gradientAscent`!
 
-Now we can implement steepest descent.
+> estimates :: (Floating a, Ord a) =>
+>              V.Vector a ->
+>              V.Vector (V.Vector a) ->
+>              V.Vector a ->
+>              [V.Vector a]
+> estimates y x = gradientAscent $
+>                 \theta -> totalLogLikelihood theta
+>                                              (V.map auto y)
+>                                              (V.map (V.map auto) x)
 
 Let's try it out. First we need to generate some data.  Rather
 arbitrarily let us create some populations from the `beta`
@@ -211,10 +220,13 @@ distribution.
 
 We can plot the populations we wish to distinguish by sampling.
 
+> a, b :: Double
 > a          = 15
 > b          = 6
+> nSamples :: Int
 > nSamples   = 100000
-
+>
+> sample0, sample1 :: [Double]
 > sample0 = betas nSamples a b
 > sample1 = betas nSamples b a
 
@@ -303,8 +315,10 @@ dia = test tickSize nCells a b b a nSamples
 > mixSamples :: [Double] -> [Double] -> [(Double, Double)]
 > mixSamples xs ys = unfoldr g ((map (0,) xs), (map (1,) ys))
 >   where
->     g ([], [])   = Nothing
->     g ((x:xs), ys) = Just $ (x, (ys, xs))
+>     g ([], [])         = Nothing
+>     g ([],  _)         = Nothing
+>     g ( _, [])         = Nothing
+>     g ((x:xs), (y:ys)) = Just $ (x, (y:ys, xs))
 
 > createSample :: V.Vector (Double, Double)
 > createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
@@ -323,7 +337,7 @@ Set the learning rate, the strength of the penalty term and the number
 of iterations.
 
 > gamma :: Double
-> gamma = 0.04
+> gamma = 0.1
 >
 > delta :: Floating a => a
 > delta = 1.0
@@ -344,19 +358,25 @@ Now we can run our example. For the constant parameter of our model
 >       v = V.map snd vals
 >       hs = iterate (stepOnce gamma u v) initTheta
 >       xs = V.map snd vals
->       theta = head $ drop nIters hs
->   printf "theta_0 = %5.2f, theta_1 = %5.2f\n" (theta V.! 0) (theta V.! 1)
+>       theta =  head $ drop nIters hs
+>       theta' = head $ drop 100 $ estimates u v initTheta
+>   printf "Hand crafted descent: theta_0 = %5.3f, theta_1 = %5.3f\n"
+>          (theta V.! 0) (theta V.! 1)
+>   printf "Library descent:      theta_0 = %5.3f, theta_1 = %5.3f\n"
+>          (theta' V.! 0) (theta' V.! 1)
 >   let predProbs  = V.map (\x -> logit $ V.sum $ V.zipWith (*) theta x) xs
 >       mismatches = V.filter (> 0.5) $
 >                    V.map abs $
 >                    V.zipWith (-) actuals preds
 >         where
 >           actuals = V.map fst vals
->           preds   = V.map (\x -> fromIntegral $ fromEnum (x > 0.5)) predProbs
+>           preds   = V.map (\x -> fromIntegral $ fromEnum (x > 0.5))
+>                           predProbs
 >   let lActuals, lMisMatches :: Double
 >       lActuals    = fromIntegral $ V.length vals
 >       lMisMatches = fromIntegral $ V.length mismatches
->   printf "%5.2f%% correct\n" $ 100.0 *  (lActuals - lMisMatches) / lActuals
+>   printf "%5.2f%% correct\n" $
+>          100.0 *  (lActuals - lMisMatches) / lActuals
 
 And we get quite reasonable estimates:
 
