@@ -70,6 +70,8 @@ Some pragmas and imports required for the example code.
 > {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 > {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
 
+> {-# LANGUAGE TupleSections #-}
+
 > module Main (main) where
 
 > import Numeric.LinearAlgebra
@@ -80,6 +82,14 @@ Some pragmas and imports required for the example code.
 > import Data.List
 > import Data.List.Split
 > import System.Random
+> import qualified Data.Vector as V
+
+> import Control.Monad
+> import Control.Monad.State
+
+> import Data.Random ()
+> import Data.Random.Distribution.Beta
+> import Data.RVar
 
 For use in the appendix.
 
@@ -89,13 +99,6 @@ For use in the appendix.
 >
 > import Data.Maybe
 >
-> import Numeric.GSL.Fitting.Linear
-
-> import Data.Csv hiding (Field)
-> import qualified Data.ByteString.Lazy as BS
-> import System.IO
-> import Data.Char
-> import qualified Data.Vector as V
 
 Multivariate Linear Logistic Regression
 ---------------------------------------
@@ -157,42 +160,6 @@ $$
   [LogisticRegression]: http://en.wikipedia.org/wiki/Logistic_regression
 
 FIXME: We should reference the GLM book.
-
-> myOptions :: DecodeOptions
-> myOptions = defaultDecodeOptions {
->   decDelimiter = fromIntegral (ord ',')
->   }
-
-> linReg :: IO ()
-> linReg = do
->   vals <- {- fmap (V.take 12) $ -} withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
->           (\h -> do c <- BS.hGetContents h
->                     let mvv :: Either String (V.Vector (V.Vector Double))
->                         mvv = decodeWith myOptions True c
->                     case mvv of
->                       Left s -> do putStrLn s
->                                    return V.empty
->                       Right vv -> return vv
->           )
->
->   let labels = fromList $ V.toList $ V.map (V.! 0) vals
->       inds  = V.map (V.drop 1) vals
->       rowsV = V.map (V.toList) xTrain
->       nRows = V.length rowsV
->       nCols = V.length $ V.head xTrain
->       featuress = V.map (V.splitAt 11) inds
->       tF x = log $ x + 1
->       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
->                      featuress
->       indVrs = (><) nRows nCols $ concat $ V.toList rowsV
->       (coeffs, covMat, _) = multifit indVrs labels
->       ests =  V.map (\x -> fst $ multifit_est (fromList x) coeffs covMat) rowsV
->   -- putStrLn $ show ests
->   -- putStrLn $ show labels
->   let diffs = zipWith (-) (toList labels) (V.toList ests)
->   -- putStrLn $ show diffs
->   putStrLn $ show $ (sum (map (^2) diffs) / (fromIntegral $ length diffs))
->
 
 FIXME: Reference for neural net, multi-layer perceptron and logistic
 regression.
@@ -266,48 +233,6 @@ $$
 \frac{\partial}{\partial \theta_i}l(\theta) &= \big(y\frac{1}{g(\theta^T\vec{x})} - (1 - y)\frac{1}{1 - g(\theta^T\vec{x})}\big)\frac{\partial}{\partial \theta_i}g(\theta^T\vec{x})
 \end{align*}
 $$
-
-> gamma :: Double
-> gamma = 0.01
->
-> logit :: Floating a => V.Vector a -> V.Vector a -> a
-> logit x theta = 1 / (1 + exp (V.sum $ V.zipWith (*) theta x))
->
-> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> logLikelihood theta l x = l * log (logit x theta) + (1 - l) * log (1 - logit x theta)
->
-> initWs :: V.Vector Double
-> initWs = V.replicate 11 0.1
->
-> logReg :: IO ()
-> logReg = do
->   vals <- withFile "/Users/dom/Downloadable/DataScienceLondon/Train.csv" ReadMode
->           (\h -> do c <- BS.hGetContents h
->                     let mvv :: Either String (V.Vector (V.Vector Double))
->                         mvv = decodeWith myOptions True c
->                     case mvv of
->                       Left s -> do putStrLn s
->                                    return V.empty
->                       Right vv -> return vv
->           )
->   let labels = V.map (V.! 0) vals
->       inds  = V.map (V.drop 1) vals
->       featuress = V.map (V.splitAt 11) inds
->       tF x = log $ x + 1
->       xTrain = V.map (\fs -> V.zipWith (-) (V.map tF $ fst fs) (V.map tF $ snd fs))
->                      featuress
->       delLogLikelihood l x = grad $
->                              \theta -> logLikelihood theta (auto l) (V.map auto x)
->       g theta (l, x) = V.zipWith (+) theta
->                        (V.map (* gamma) $ delLogLikelihood l x theta)
->       bar = V.foldl g initWs (V.zip (V.take 2000 labels) (V.take 2000 xTrain))
->       baz = V.foldl g initWs (V.zip (V.take 2010 labels) (V.take 2010 xTrain))
->   putStrLn $ show $ initWs
->   putStrLn $ show $ bar
->   putStrLn $ show $ V.zipWith (-) bar baz
->   putStrLn $ show $ V.maximum $ V.zipWith (-) bar baz
-
-
 
 ```{.dia width='400'}
 import NnClassifierDia
@@ -783,6 +708,26 @@ Automated Differentation
 >     predicted = evaluateBPN' net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
+> delTotalLogLikelihood :: (Ord a, Floating a) =>
+>                          Int ->
+>                          [a] ->
+>                          BackpropNet' a ->
+>                          BackpropNet' a
+> delTotalLogLikelihood y x = grad f
+>   where
+>     f theta = costFn y (map auto x) theta
+
+> stepOnce :: Double ->
+>             [Double] ->
+>             BackpropNet' Double ->
+>             BackpropNet' Double
+> stepOnce gamma x theta =
+>   del theta
+>   -- V.zipWith (+) theta (V.map (* gamma) $ del theta)
+>   where
+>     del = delTotalLogLikelihood 1 x
+
+
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
 >   where calcs = propagateNet x net
@@ -838,10 +783,53 @@ Our neural net configuration. We wish to classify images which are $28
 >     -- weights :: (Random a, Floating a) => [a]
 >     weights = take (numOutputs * numInputs) (smallRandoms seed)
 
+> logit :: Floating a =>
+>          a -> a
+> logit x = 1 / (1 + exp (negate x))
+
+> actualTheta :: V.Vector Double
+> actualTheta = V.fromList [0.0, 1.0]
+
+We initialise our algorithm with arbitrary values.
+
+> initTheta :: V.Vector Double
+> initTheta = V.replicate (V.length actualTheta) 0.1
+
+Let's try it out. First we need to generate some data.  Rather
+arbitrarily let us create some populations from the `beta`
+distribution.
+
+> betas :: Int -> Double -> Double -> [Double]
+> betas n a b =
+>   fst $ runState (replicateM n (sampleRVar (beta a b))) (mkStdGen seed)
+>     where
+>       seed = 0
+
+We can plot the populations we wish to distinguish by sampling.
+
+> a, b :: Double
+> a          = 15
+> b          = 6
+> nSamples :: Int
+> nSamples   = 100000
+>
+> sample0, sample1 :: [Double]
+> sample0 = betas nSamples a b
+> sample1 = betas nSamples b a
+
+> mixSamples :: [Double] -> [Double] -> [(Double, Double)]
+> mixSamples xs ys = unfoldr g ((map (0,) xs), (map (1,) ys))
+>   where
+>     g ([], [])         = Nothing
+>     g ([],  _)         = Nothing
+>     g ( _, [])         = Nothing
+>     g ((x:xs), (y:ys)) = Just $ (x, (y:ys, xs))
+
+> createSample :: V.Vector (Double, Double)
+> createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
+
 > main :: IO ()
 > main = do
->   linReg
->   logReg
 >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
 >       w2  = randomWeightMatrix nNodes nDigits 42
 >       w1' :: (Random a, Floating a) => [[a]]
@@ -851,6 +839,7 @@ Our neural net configuration. We wish to classify images which are $28
 >       initialNet  = buildBackpropNet  lRate [w1, w2] tanhAS
 >       initialNet' :: BackpropNet' Double
 >       initialNet' = buildBackpropNet' lRate [w1', w2'] tanhAS
+>       testNet = buildBackpropNet' lRate [[[0.1, 0.1]]] (ActivationFunction logit)
 >
 >   trainingData <- fmap (take 8000) readTrainingData
 >
@@ -862,8 +851,12 @@ Our neural net configuration. We wish to classify images which are $28
 >
 >   let costWeights :: (Ord a, RealFrac a, Floating a) => BackpropNet' a -> a
 >       costWeights = costFn (snd $ head trainingData') (fst $ head trainingData')
+>       u = fst $ V.head createSample
+>       v = snd $ V.head createSample
 >       derivCostWeights :: (Floating a, RealFrac a) => BackpropNet' a -> BackpropNet' a
 >       derivCostWeights = grad costWeights
+>       foo = stepOnce u [1.0, v] testNet
+>
 >
 >   error $ take 1000 $ show $ map layerWeights' $ layers' $ derivCostWeights initialNet'
 >
