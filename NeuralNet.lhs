@@ -65,10 +65,12 @@ Some pragmas and imports required for the example code.
 > {-# LANGUAGE DeriveFoldable #-}
 > {-# LANGUAGE DeriveTraversable #-}
 > {-# LANGUAGE ScopedTypeVariables #-}
->
-> {-# OPTIONS_GHC -Wall                    #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults  #-}
+
+{-# OPTIONS_GHC -Wall                     #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+
+> {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
 > {-# LANGUAGE TupleSections #-}
 
@@ -98,7 +100,8 @@ For use in the appendix.
 > import Data.Binary.Get
 >
 > import Data.Maybe
->
+> import Text.Printf
+> import Debug.Trace
 
 Multivariate Linear Logistic Regression
 ---------------------------------------
@@ -595,11 +598,11 @@ using each pair to move a step in the direction of steepest descent.
 >         target = targets !! digit
 >
 > targets :: Floating a => [[a]]
-> targets = map row [0 .. nDigits - 1]
+> targets = map row [0 .. 2 {- nDigits -} - 1]
 >   where
 >     row m = concat [x, 1.0 : y]
 >       where
->         (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
+>         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
 
 > trainWithAllPatterns :: BackpropNet ->
 >                         [([Double], Int)]
@@ -702,31 +705,99 @@ Automated Differentation
 > evaluateBPN' net input = propLayerOut' $ last calcs
 >   where calcs = propagateNet' (1:input) net
 >
-> costFn :: (Floating a, Ord a) => Int -> [a] -> BackpropNet' a -> a
+> costFn :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet' a -> a
 > costFn expectedDigit input net = 0.5 * sum (map (^2) diffs)
 >   where
 >     predicted = evaluateBPN' net input
->     diffs = zipWith (-) (targets!!expectedDigit) predicted
+>     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
 
-> delTotalLogLikelihood :: (Ord a, Floating a) =>
+> delCostFn :: (Ord a, Floating a, Show a) =>
 >                          Int ->
 >                          [a] ->
 >                          BackpropNet' a ->
 >                          BackpropNet' a
-> delTotalLogLikelihood y x = grad f
+> delCostFn y x = grad f
 >   where
 >     f theta = costFn y (map auto x) theta
 
 > stepOnce :: Double ->
+>             Int ->
 >             [Double] ->
 >             BackpropNet' Double ->
 >             BackpropNet' Double
-> stepOnce gamma x theta =
->   del theta
->   -- V.zipWith (+) theta (V.map (* gamma) $ del theta)
->   where
->     del = delTotalLogLikelihood 1 x
+> stepOnce gamma y x theta =
+>   theta + fmap (* (negate gamma)) (delCostFn y x theta)
 
+FIXME: See the FIXMEs below.
+
+> instance Num a => Num (BackpropNet' a) where
+>   (+) = addBPN
+
+> addBPN :: Num a => BackpropNet' a -> BackpropNet' a -> BackpropNet' a
+> addBPN x y = BackpropNet' { layers' = zipWith (+) (layers' x) (layers' y)
+>                           , learningRate' = learningRate' x
+>                           }
+
+FIXME: We should throw an error if we try to add layers with non-matching functions.
+
+FIXME: Perhaps we should use lenses.
+
+> instance Num a => Num (Layer' a) where
+>   (+) = addLayer
+>
+> addLayer :: Num a => Layer' a -> Layer' a -> Layer' a
+> addLayer x y = Layer' { layerWeights'  = zipWith (zipWith (+)) (layerWeights' x) (layerWeights' y)
+>                       , layerFunction' = layerFunction' x
+>                       }
+
+> stepOnceStoch :: Double ->
+>                  Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double
+> stepOnceStoch gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>   where
+>     del = delLogLikelihood y x
+
+> stepOnceStoch' :: Double ->
+>                  Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double ->
+>                  V.Vector Double
+> stepOnceStoch' gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>   where
+>     del = delCost y x
+
+> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost theta y x = 0.5 * (y - yhat)^2
+>   where
+>     yhat = logit $ V.sum $ V.zipWith (*) theta x
+
+> delCost :: Floating a =>
+>                     a ->
+>                     V.Vector a ->
+>                     V.Vector a ->
+>                     V.Vector a
+> delCost y x = grad f
+>   where
+>     f theta = cost theta (auto y) (V.map auto x)
+
+> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> logLikelihood theta y x = y * log (logit z) +
+>                           (1 - y) * log (1 - logit z)
+>   where
+>     z = V.sum $ V.zipWith (*) theta x
+
+> delLogLikelihood :: Floating a =>
+>                     a ->
+>                     V.Vector a ->
+>                     V.Vector a ->
+>                     V.Vector a
+> delLogLikelihood y x = grad f
+>   where
+>     f theta = logLikelihood theta (auto y) (V.map auto x)
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
@@ -759,7 +830,7 @@ Our neural net configuration. We wish to classify images which are $28
 20 nodes.
 
 > lRate :: Double
-> lRate = 0.007
+> lRate = 1.0 -- 0.007
 > nRows, nCols, nNodes, nDigits :: Int
 > nRows = 28
 > nCols = 28
@@ -826,7 +897,7 @@ We can plot the populations we wish to distinguish by sampling.
 >     g ((x:xs), (y:ys)) = Just $ (x, (y:ys, xs))
 
 > createSample :: V.Vector (Double, Double)
-> createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
+> createSample = V.fromList $ take 10 $ mixSamples sample1 sample0
 
 > main :: IO ()
 > main = do
@@ -849,16 +920,37 @@ We can plot the populations we wish to distinguish by sampling.
 >   let trainingData' :: RealFrac a => [LabelledImage a]
 >       trainingData' = zip (map normalisedData' trainingImages) trainingLabels
 >
->   let costWeights :: (Ord a, RealFrac a, Floating a) => BackpropNet' a -> a
+>   let costWeights :: (Ord a, RealFrac a, Floating a, Show a) => BackpropNet' a -> a
 >       costWeights = costFn (snd $ head trainingData') (fst $ head trainingData')
->       u = fst $ V.head createSample
+>       u = round $ fst $ V.head createSample
 >       v = snd $ V.head createSample
->       derivCostWeights :: (Floating a, RealFrac a) => BackpropNet' a -> BackpropNet' a
+>       us = V.map round ws
+>       vs = V.map snd createSample
+>       ws = V.map fst createSample
+>       xs = V.map (V.cons 1.0 . V.singleton) ws
+>       derivCostWeights :: (Floating a, RealFrac a, Show a) => BackpropNet' a -> BackpropNet' a
 >       derivCostWeights = grad costWeights
->       foo = stepOnce u [1.0, v] testNet
->
->
->   error $ take 1000 $ show $ map layerWeights' $ layers' $ derivCostWeights initialNet'
+>       foo = stepOnce lRate u [v] testNet
+>       foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
+>                       (V.zip (V.map fromIntegral us) vs)
+>       baz = stepOnceStoch' lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
+>       baz' = V.scanl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
+>                                                          (V.fromList [1.0, v]) s)
+>                       (V.fromList [0.1, 0.1])
+>                       (V.zip us vs)
+>   printf "Original theta %s\n" $
+>     show $ map layerWeights' $ layers' testNet
+>   printf "Hand crafted cost %s\n" $
+>     show $ cost (V.fromList [0.1, 0.1]) (fromIntegral u) (V.fromList [1.0, v])
+>   printf "Neural net cost %s\n" $
+>     show $ costFn u [v] testNet
+>   putStrLn $ show $ map layerWeights' $ layers' $ delCostFn u [v] testNet
+>   putStrLn $ show $ map layerWeights' $ layers' foo
+>   putStrLn $ show $ V.map (map layerWeights') $ V.map layers' foo'
+>   putStrLn $ show $ delCost (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
+>   putStrLn $ show $ baz
+>   putStrLn $ show $ baz'
+>   error "Finished"
 >
 >   let finalNet = trainWithAllPatterns initialNet trainingData
 >
