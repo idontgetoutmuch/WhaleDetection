@@ -721,11 +721,27 @@ Automated Differentation
 >                                   --        "\nexpected:" ++ show (targets!!expectedDigit) ++
 >                                   --        "\npredicted:" ++ show predicted ++
 >                                   --        "\ninput:" ++ show input) $
->                                   0.5 * sum (map (^2) diffs) + b
+>                                   0.5 * sum (map (^2) diffs)
 >   where
->     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
 >     predicted = evaluateBPN' net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
+
+> totalCostNN :: (Floating a, Ord a, Show a) => V.Vector Int -> V.Vector [a] -> BackpropNet' a -> a
+> totalCostNN expectedDigits inputs net = (a + delta * b) / l
+>   where
+>     l = fromIntegral $ V.length expectedDigits
+>     a = V.sum $ V.zipWith (\expectedDigit input -> costFn' expectedDigit input net)
+>                           expectedDigits inputs
+>     b = (/2) $ sum $ map (^2) $ concat $ concat $ extractWeights net
+
+> delTotalCostNN :: (Floating a, Ord a, Show a) =>
+>                   V.Vector Int ->
+>                   V.Vector [a] ->
+>                   BackpropNet' a ->
+>                   BackpropNet' a
+> delTotalCostNN expectedDigits inputs = grad f
+>   where
+>     f net = totalCostNN expectedDigits (V.map (map auto) inputs) net
 
 > delCostFn :: (Ord a, Floating a, Show a) =>
 >                          Int ->
@@ -760,6 +776,14 @@ Automated Differentation
 >             BackpropNet' Double
 > stepOnce' gamma y x theta =
 >   theta + fmap (* (negate gamma)) (delCostFn' y x theta)
+
+> stepOnceTotal :: Double ->
+>                  V.Vector Int ->
+>                  V.Vector [Double] ->
+>                  BackpropNet' Double ->
+>                  BackpropNet' Double
+> stepOnceTotal gamma y x net =
+>   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
 
 FIXME: See the FIXMEs below.
 
@@ -1028,18 +1052,23 @@ We can plot the populations we wish to distinguish by sampling.
 >     show $ costFn u [v] testNet
 >   printf "Neural net cost %s\n" $
 >     show $ costFn' u [v] testNet'
+>
+>   let vals :: V.Vector (Double, V.Vector Double)
+>       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
+>
+>   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
+>   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
+>
+>   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
+>   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
+>
+>   error "Finished"
+
+
 >   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet
 >   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn' u [v] testNet'
 >   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet
 >   printf "Step once %s\n" $ show $ extractWeights $ stepOnce' lRate u [v] testNet'
->
->   let vals :: V.Vector (Double, V.Vector Double)
->       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
-
->   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
->   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
->
->   error "Finished"
 >
 >   let foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
 >                       (V.zip (V.map fromIntegral us) vs)
