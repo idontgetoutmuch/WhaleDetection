@@ -716,7 +716,12 @@ Automated Differentation
 >     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
 
 > costFn' :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet' a -> a
-> costFn' expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
+> costFn' expectedDigit input net = -- trace ("\nWeights:" ++ show (extractWeights net) ++
+>                                   --        "\nb:" ++ show b ++
+>                                   --        "\nexpected:" ++ show (targets!!expectedDigit) ++
+>                                   --        "\npredicted:" ++ show predicted ++
+>                                   --        "\ninput:" ++ show input) $
+>                                   0.5 * sum (map (^2) diffs) + b
 >   where
 >     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
 >     predicted = evaluateBPN' net input
@@ -731,6 +736,15 @@ Automated Differentation
 >   where
 >     f theta = costFn y (map auto x) theta
 
+> delCostFn' :: (Ord a, Floating a, Show a) =>
+>                          Int ->
+>                          [a] ->
+>                          BackpropNet' a ->
+>                          BackpropNet' a
+> delCostFn' y x = grad f
+>   where
+>     f theta = costFn' y (map auto x) theta
+
 > stepOnce :: Double ->
 >             Int ->
 >             [Double] ->
@@ -738,6 +752,14 @@ Automated Differentation
 >             BackpropNet' Double
 > stepOnce gamma y x theta =
 >   theta + fmap (* (negate gamma)) (delCostFn y x theta)
+
+> stepOnce' :: Double ->
+>             Int ->
+>             [Double] ->
+>             BackpropNet' Double ->
+>             BackpropNet' Double
+> stepOnce' gamma y x theta =
+>   theta + fmap (* (negate gamma)) (delCostFn' y x theta)
 
 FIXME: See the FIXMEs below.
 
@@ -909,7 +931,7 @@ We can plot the populations we wish to distinguish by sampling.
 >     g ((x:xs), (y:ys)) = Just $ (x, (y:ys, xs))
 
 > createSample :: V.Vector (Double, Double)
-> createSample = V.fromList $ take 10 $ mixSamples sample1 sample0
+> createSample = V.fromList $ take 800 $ mixSamples sample1 sample0
 
 > main :: IO ()
 > main = do
@@ -923,7 +945,7 @@ We can plot the populations we wish to distinguish by sampling.
 >       initialNet' :: BackpropNet' Double
 >       initialNet' = buildBackpropNet' lRate [w1', w2'] tanhAS
 >       testNet = buildBackpropNet' lRate [[[0.1, 0.1]]] (ActivationFunction logit)
->       testNet' = buildBackpropNet' lRate [[[0.1], [0.1]]] (ActivationFunction logit)
+>       testNet' = buildBackpropNet' lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
 >
 >   trainingData <- fmap (take 8000) readTrainingData
 >
@@ -939,26 +961,20 @@ We can plot the populations we wish to distinguish by sampling.
 >       vs = V.map snd createSample
 >       ws = V.map fst createSample
 >       xs = V.map (V.cons 1.0 . V.singleton) ws
->       foo = stepOnce lRate u [v] testNet
->       foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
->                       (V.zip (V.map fromIntegral us) vs)
->       baz = stepOnceStoch' lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
->       baz' = V.scanl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                       (V.fromList [0.1, 0.1])
->                       (V.zip us vs)
->       bar = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                       (V.fromList [0.1, 0.1])
->                       (V.zip us vs)
->       bar1 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                       bar
->                       (V.zip us vs)
->       bar2 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                       bar1
->                       (V.zip us vs)
+
+-- >       baz' = V.scanl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
+-- >                                                          (V.fromList [1.0, v]) s)
+-- >                       (V.fromList [0.1, 0.1])
+-- >                       (V.zip us vs)
+-- >       bar1 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
+-- >                                                          (V.fromList [1.0, v]) s)
+-- >                       bar
+-- >                       (V.zip us vs)
+-- >       bar2 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
+-- >                                                          (V.fromList [1.0, v]) s)
+-- >                       bar1
+-- >                       (V.zip us vs)
+
 >   printf "Original theta %s\n" $
 >     show $ map layerWeights' $ layers' testNet
 >   printf "Original theta %s\n" $
@@ -967,16 +983,50 @@ We can plot the populations we wish to distinguish by sampling.
 >     show $ cost (V.fromList [0.1, 0.1]) (fromIntegral u) (V.fromList [1.0, v])
 >   printf "Neural net cost %s\n" $
 >     show $ costFn u [v] testNet
->   putStrLn $ show $ map layerWeights' $ layers' $ delCostFn u [v] testNet
->   putStrLn $ show $ map layerWeights' $ layers' foo
->   putStrLn $ show $ V.map (map layerWeights') $ V.map layers' foo'
+>   printf "Neural net cost %s\n" $
+>     show $ costFn' u [v] testNet'
+>   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet
+>   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn' u [v] testNet'
+>   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet
+>   printf "Step once %s\n" $ show $ extractWeights $ stepOnce' lRate u [v] testNet'
+>   let foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
+>                       (V.zip (V.map fromIntegral us) vs)
+>   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo'
+>   let foo'' = V.scanl' (\s (u, v) -> stepOnce' lRate u [v] s) testNet'
+>                        (V.zip (V.map fromIntegral us) vs)
+>   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo''
 >   putStrLn $ show $ delCost (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
->   putStrLn $ show $ baz
->   putStrLn $ show $ baz'
+
+>   let baz = stepOnceStoch' lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
+>   printf "Squares: %s\n" $ show $ baz
+>   let baz' = stepOnceStoch lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
+>   printf "Loglikelihood: %s\n" $ show baz'
+>   let bar = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
+>                                                          (V.fromList [1.0, v]) s)
+>                      (V.fromList [0.1, 0.1])
+>                      (V.zip us vs)
 >   putStrLn $ show $ bar
->   -- putStrLn $ show $ bar1
->   -- putStrLn $ show $ bar2
->   -- putStrLn $ show $ extractWeights testNet
+>   let bar' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
+>                                                          (V.fromList [1.0, v]) s)
+>                       (V.fromList [0.1, 0.1])
+>                       (V.zip us vs)
+>   putStrLn $ show $ bar'
+>   let bar1' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
+>                                                          (V.fromList [1.0, v]) s)
+>                        bar'
+>                       (V.zip us vs)
+>   putStrLn $ show $ bar1'
+>   let bar2' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
+>                                                          (V.fromList [1.0, v]) s)
+>                        bar1'
+>                       (V.zip us vs)
+>   putStrLn $ show $ bar2'
+
+-- >   putStrLn $ show $ baz'
+-- >   putStrLn $ show $ bar1
+-- >   putStrLn $ show $ bar2
+
+>   putStrLn $ show $ extractWeights testNet
 >   error "Finished"
 >
 >   let finalNet = trainWithAllPatterns initialNet trainingData
