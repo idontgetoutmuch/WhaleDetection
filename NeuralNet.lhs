@@ -803,12 +803,6 @@ FIXME: Perhaps we should use lenses.
 >   where
 >     del = delCost y x
 
-> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> cost theta y x = 0.5 * (y - yhat)^2 + b
->   where
->     yhat = logit $ V.sum $ V.zipWith (*) theta x
->     b = (/2) $ V.sum $ V.map (^2) theta
-
 > delCost :: Floating a =>
 >                     a ->
 >                     V.Vector a ->
@@ -817,6 +811,55 @@ FIXME: Perhaps we should use lenses.
 > delCost y x = grad f
 >   where
 >     f theta = cost theta (auto y) (V.map auto x)
+
+
+Working gradient descent start
+
+> delta :: Floating a => a
+> delta = 1.0
+
+> gamma :: Double
+> gamma = 0.4
+
+> stepOnceCost :: Floating a =>
+>                  a ->
+>                  V.Vector a ->
+>                  V.Vector (V.Vector a) ->
+>                  V.Vector a ->
+>                  V.Vector a
+> stepOnceCost gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>     where
+>       del = delTotalCost y x
+
+> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost theta y x = 0.5 * (y - yhat)^2
+>   where
+>     yhat = logit $ V.sum $ V.zipWith (*) theta x
+
+> totalCost :: Floating a =>
+>              V.Vector a ->
+>              V.Vector a ->
+>              V.Vector (V.Vector a) ->
+>              a
+> totalCost theta y x = (a + delta * b) / l
+>   where
+>     l = fromIntegral $ V.length y
+>     a = V.sum $ V.zipWith (cost theta) y x
+>     b = (/2) $ V.sum $ V.map (^2) theta
+
+> delTotalCost :: Floating a =>
+>                 V.Vector a ->
+>                 V.Vector (V.Vector a) ->
+>                 V.Vector a ->
+>                 V.Vector a
+> delTotalCost y x = grad f
+>   where
+>     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
+
+
+Working gradient descent end
+
 
 > logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
 > logLikelihood theta y x = y * log (logit z) +
@@ -931,7 +974,7 @@ We can plot the populations we wish to distinguish by sampling.
 >     g ((x:xs), (y:ys)) = Just $ (x, (y:ys, xs))
 
 > createSample :: V.Vector (Double, Double)
-> createSample = V.fromList $ take 800 $ mixSamples sample1 sample0
+> createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
 
 > main :: IO ()
 > main = do
@@ -989,6 +1032,15 @@ We can plot the populations we wish to distinguish by sampling.
 >   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn' u [v] testNet'
 >   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet
 >   printf "Step once %s\n" $ show $ extractWeights $ stepOnce' lRate u [v] testNet'
+>
+>   let vals :: V.Vector (Double, V.Vector Double)
+>       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
+
+>   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
+>   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
+>
+>   error "Finished"
+>
 >   let foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
 >                       (V.zip (V.map fromIntegral us) vs)
 >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo'
@@ -1027,7 +1079,6 @@ We can plot the populations we wish to distinguish by sampling.
 -- >   putStrLn $ show $ bar2
 
 >   putStrLn $ show $ extractWeights testNet
->   error "Finished"
 >
 >   let finalNet = trainWithAllPatterns initialNet trainingData
 >

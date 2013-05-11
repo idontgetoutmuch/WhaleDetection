@@ -118,7 +118,7 @@ Some pragmas to warn us about potentially dangerous situations.
 >
 > {-# LANGUAGE TupleSections #-}
 >
-> module Logistic ( betas
+> module NNRedux ( betas
 >                 , main
 >                 , a
 >                 , b
@@ -207,6 +207,42 @@ Or even easier just use the library function `gradientAscent`!
 >                 \theta -> totalLogLikelihood theta
 >                                              (V.map auto y)
 >                                              (V.map (V.map auto) x)
+
+> stepOnceCost :: Floating a =>
+>                  a ->
+>                  V.Vector a ->
+>                  V.Vector (V.Vector a) ->
+>                  V.Vector a ->
+>                  V.Vector a
+> stepOnceCost gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>     where
+>       del = delTotalCost y x
+
+> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost theta y x = 0.5 * (y - yhat)^2
+>   where
+>     yhat = logit $ V.sum $ V.zipWith (*) theta x
+
+> totalCost :: Floating a =>
+>              V.Vector a ->
+>              V.Vector a ->
+>              V.Vector (V.Vector a) ->
+>              a
+> totalCost theta y x = (a + delta * b) / l
+>   where
+>     l = fromIntegral $ V.length y
+>     a = V.sum $ V.zipWith (cost theta) y x
+>     b = (/2) $ V.sum $ V.map (^2) theta
+
+> delTotalCost :: Floating a =>
+>                 V.Vector a ->
+>                 V.Vector (V.Vector a) ->
+>                 V.Vector a ->
+>                 V.Vector a
+> delTotalCost y x = grad f
+>   where
+>     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
 Let's try it out. First we need to generate some data.  Rather
 arbitrarily let us create some populations from the `beta`
@@ -357,14 +393,31 @@ Now we can run our example. For the constant parameter of our model
 >   let u = V.map fst vals
 >       v = V.map snd vals
 >       hs = iterate (stepOnce gamma u v) initTheta
+>       gs = iterate (stepOnceCost gamma u v) initTheta
 >       xs = V.map snd vals
+>       theta'' = head $ drop nIters gs
 >       theta =  head $ drop nIters hs
 >       theta' = head $ drop 100 $ estimates u v initTheta
+>   printf "Hand crafted cost descent: theta_0 = %5.3f, theta_1 = %5.3f\n"
+>          (theta'' V.! 0) (theta'' V.! 1)
 >   printf "Hand crafted descent: theta_0 = %5.3f, theta_1 = %5.3f\n"
 >          (theta V.! 0) (theta V.! 1)
 >   printf "Library descent:      theta_0 = %5.3f, theta_1 = %5.3f\n"
 >          (theta' V.! 0) (theta' V.! 1)
 >   let predProbs  = V.map (\x -> logit $ V.sum $ V.zipWith (*) theta x) xs
+>       mismatches = V.filter (> 0.5) $
+>                    V.map abs $
+>                    V.zipWith (-) actuals preds
+>         where
+>           actuals = V.map fst vals
+>           preds   = V.map (\x -> fromIntegral $ fromEnum (x > 0.5))
+>                           predProbs
+>   let lActuals, lMisMatches :: Double
+>       lActuals    = fromIntegral $ V.length vals
+>       lMisMatches = fromIntegral $ V.length mismatches
+>   printf "%5.2f%% correct\n" $
+>          100.0 *  (lActuals - lMisMatches) / lActuals
+>   let predProbs  = V.map (\x -> logit $ V.sum $ V.zipWith (*) theta'' x) xs
 >       mismatches = V.filter (> 0.5) $
 >                    V.map abs $
 >                    V.zipWith (-) actuals preds
