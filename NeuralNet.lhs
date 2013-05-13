@@ -86,15 +86,6 @@ For use in the appendix.
 > import Data.Maybe
 > import Text.Printf
 
-We can view neural nets or at least a multi layer perceptron as a
-generalisation of (multivariate) linear logistic regression.
-
-  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
-
-```{.dia width='400'}
-import NnClassifierDia
-dia = nn
-```
 Neural Networks
 ---------------
 
@@ -175,6 +166,73 @@ given a cost function:
 $$
 E(\vec{x}) = \frac{1}{2}\sum_1^{N_L}(\hat{y}^L_i - y^L_i)^2
 $$
+
+We can view neural nets or at least a multi layer perceptron as a
+generalisation of (multivariate) linear logistic regression.
+
+  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
+
+```{.dia width='400'}
+import NnClassifierDia
+dia = nn
+```
+
+Logistic Regression Redux
+-------------------------
+
+Let us first implement logistic regression. This will give us a
+reference against which to compare the equivalent solution expressed
+as a neural network.
+
+Instead of maximimizing the log likelihood, we will minimize a cost function.
+
+> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
+> cost theta y x = 0.5 * (y - yhat)^2
+>   where
+>     yhat = logit $ V.sum $ V.zipWith (*) theta x
+
+We add a regularization term into the total cost so that the parameters do not grow too large.
+
+> delta :: Floating a => a
+> delta = 1.0
+
+> totalCost :: Floating a =>
+>              V.Vector a ->
+>              V.Vector a ->
+>              V.Vector (V.Vector a) ->
+>              a
+> totalCost theta y x = (a + delta * b) / l
+>   where
+>     l = fromIntegral $ V.length y
+>     a = V.sum $ V.zipWith (cost theta) y x
+>     b = (/2) $ V.sum $ V.map (^2) theta
+
+We determine the gradient of the regularized cost function.
+
+> delTotalCost :: Floating a =>
+>                 V.Vector a ->
+>                 V.Vector (V.Vector a) ->
+>                 V.Vector a ->
+>                 V.Vector a
+> delTotalCost y x = grad f
+>   where
+>     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
+
+And finally we can apply gradient descent.
+
+> gamma :: Double
+> gamma = 0.4
+
+> stepOnceCost :: Floating a =>
+>                  a ->
+>                  V.Vector a ->
+>                  V.Vector (V.Vector a) ->
+>                  V.Vector a ->
+>                  V.Vector a
+> stepOnceCost gamma y x theta =
+>   V.zipWith (-) theta (V.map (* gamma) $ del theta)
+>     where
+>       del = delTotalCost y x
 
 Backpropagation
 ---------------
@@ -660,53 +718,6 @@ FIXME: Perhaps we should use lenses.
 > addLayer x y = Layer' { layerWeights'  = zipWith (zipWith (+)) (layerWeights' x) (layerWeights' y)
 >                       , layerFunction' = layerFunction' x
 >                       }
-
-Working gradient descent start
-
-> delta :: Floating a => a
-> delta = 1.0
-
-> gamma :: Double
-> gamma = 0.4
-
-> stepOnceCost :: Floating a =>
->                  a ->
->                  V.Vector a ->
->                  V.Vector (V.Vector a) ->
->                  V.Vector a ->
->                  V.Vector a
-> stepOnceCost gamma y x theta =
->   V.zipWith (-) theta (V.map (* gamma) $ del theta)
->     where
->       del = delTotalCost y x
-
-> cost :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> cost theta y x = 0.5 * (y - yhat)^2
->   where
->     yhat = logit $ V.sum $ V.zipWith (*) theta x
-
-> totalCost :: Floating a =>
->              V.Vector a ->
->              V.Vector a ->
->              V.Vector (V.Vector a) ->
->              a
-> totalCost theta y x = (a + delta * b) / l
->   where
->     l = fromIntegral $ V.length y
->     a = V.sum $ V.zipWith (cost theta) y x
->     b = (/2) $ V.sum $ V.map (^2) theta
-
-> delTotalCost :: Floating a =>
->                 V.Vector a ->
->                 V.Vector (V.Vector a) ->
->                 V.Vector a ->
->                 V.Vector a
-> delTotalCost y x = grad f
->   where
->     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
-
-
-Working gradient descent end
 
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
