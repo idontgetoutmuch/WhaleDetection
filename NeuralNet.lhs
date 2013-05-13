@@ -27,27 +27,10 @@ observes: "the grandaddy machine-learning algorithm of them all,
 back-propagation, is nothing but steepest descent with reverse mode
 automatic differentiation".
 
-Automated differentiation was developed in the 1960's but even now
-does not seem to be that widely used. Even experienced and
-knowledgeable practitioners often assume it is either a finite
-difference method or symbolic computation when it is neither.
-
   [Backpropagation]: http://en.wikipedia.org/wiki/Backpropagation
   [AutomaticDifferentiation]: http://en.wikipedia.org/wiki/Automatic_differentiation
   [Domke2009a]: http://justindomke.wordpress.com/2009/02/17/automatic-differentiation-the-most-criminally-underused-tool-in-the-potential-machine-learning-toolbox/
 
-This article is divided into four parts:
-
-* The first recalls logistic regression which can be viewed as a very
-simple neural network (a single layer perceptron);
-
-* The second explains the multi-layer perceptron neural network;
-
-* The third summarises how backpropagation works;
-
-* The last shows how backpropagation can be replaced by automated
-differentation. Both techniques are applied to what appears to be the
-standard [benchmark][LeCunCortesMnist] (MNIST).
 
 Acknowledgements
 ---------------
@@ -66,9 +49,10 @@ Some pragmas and imports required for the example code.
 > {-# LANGUAGE DeriveTraversable #-}
 > {-# LANGUAGE ScopedTypeVariables #-}
 
-{-# OPTIONS_GHC -Wall                     #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+> {-# OPTIONS_GHC -Wall                     #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+> {-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
 
 > {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
@@ -101,141 +85,11 @@ For use in the appendix.
 >
 > import Data.Maybe
 > import Text.Printf
-> import Debug.Trace
-
-Multivariate Linear Logistic Regression
----------------------------------------
-
-$$
-y = tanh (\sum_{i=1}^{22} w_i * x_i + c)
-$$
-
-Let us consider linear regression first. We have
-
-$$
-\vec{y} = X\vec{w}
-$$
-
-We wish to minimise the loss function:
-
-$$
-\mathbb{L} = \vec{r}\cdot\vec{r}
-$$
-
-where
-
-$$
-\vec{r} = \vec{y} - X\vec{w}
-$$
-
-Differentiating:
-
-$$
-\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n r_i \frac{\partial r_i}{\partial w_j}
-$$
-
-We also have that:
-
-$$
-\frac{\partial r_i}{\partial w_j} = -X_{ij}
-$$
-
-Substituting:
-
-$$
-\frac{\partial\mathbb{L}}{\partial w_j} = 2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}w_k)(-X_{ij})
-$$
-
-The minimum of the loss function is reached when
-
-$$
-\frac{\partial \mathbb{L}}{\partial w_j} = 0
-$$
-
-Substituting again we have find that the values of $\vec{w} = \vec{\hat{w}}$ which
-minimise the loss function satisfy
-
-$$
-2 \sum_{i=1}^n (y_i - \sum_{k=1}^m X_{ik}\hat{w}_k)(-X_{ij}) = 0
-$$
-
-
-  [LogisticRegression]: http://en.wikipedia.org/wiki/Logistic_regression
-
-FIXME: We should reference the GLM book.
-
-FIXME: Reference for neural net, multi-layer perceptron and logistic
-regression.
 
 We can view neural nets or at least a multi layer perceptron as a
-generalisation of (multivariate) linear logistic regression. It is
-instructive to apply both backpropagation and automated
-differentiation to this simpler problem.
-
-Following [Ng][Ng:cs229], we define:
-
-  [Ng:cs229]: http://cs229.stanford.edu
-
-$$
-h_{\theta}(\vec{x}) = g(\theta^T\vec{x})
-$$
-
-where $\theta = (\theta_1, \ldots, \theta_m)$ and $g$ is a function
-such as the logistic function $g(x) = 1 / (1 + e^{-\theta^T\vec{x}})$
-or $\tanh$.
-
-Next we define the probability of getting a particular value of the binary lable:
-
-$$
-\begin{align*}
-{\mathbb P}(y = 1 \mid \vec{x}; \theta) &= h_{\theta}(\vec{x}) \\
-{\mathbb P}(y = 0 \mid \vec{x}; \theta) &= 1 - h_{\theta}(\vec{x})
-\end{align*}
-$$
-
-which we can re-write as:
-
-$$
-p(y \mid \vec{x} ; \theta) = (h_{\theta}(\vec{x}))^y(1 - h_{\theta}(\vec{x}))^{1 - y}
-$$
-
-We wish to find the value of $\theta$ that gives the maximum
-probability to the observations. We do this by maximising the
-likelihood. Assuming we have $n$ observations the likelihood is:
-
-$$
-\begin{align*}
-L(\theta) &= \prod_{i=1}^n p(y^{(i)} \mid {\vec{x}}^{(i)} ; \theta) \\
-          &= \prod_{i=1}^n (h_{\theta}(\vec{x}^{(i)}))^{y^{(i)}} (1 - h_{\theta}(\vec{x}^{(i)}))^{1 - y^{(i)}}
-\end{align*}
-$$
-
-It is standard practice to maximise the log likelihood which will give the same maximum as log is monotonic.
-
-$$
-\begin{align*}
-l(\theta) &= \log L(\theta) \\
-          &= \sum_{i=1}^n {y^{(i)}}\log h_{\theta}(\vec{x}^{(i)}) + (1 - y^{(i)})\log (1 - h_{\theta}(\vec{x}^{(i)}))
-\end{align*}
-$$
-
-We now use [gradient descent][GradientDescent] to find the maximum by
-starting with a random value for the unknown parameter and then
-stepping in the steepest direction.
+generalisation of (multivariate) linear logistic regression.
 
   [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
-
-$$
-\theta' = \theta + \gamma\nabla_{\theta}l(\theta)
-$$
-
-Differentiating the log likelihood, we have:
-
-$$
-\begin{align*}
-\frac{\partial}{\partial \theta_i}l(\theta) &= \big(y\frac{1}{g(\theta^T\vec{x})} - (1 - y)\frac{1}{1 - g(\theta^T\vec{x})}\big)\frac{\partial}{\partial \theta_i}g(\theta^T\vec{x})
-\end{align*}
-$$
 
 ```{.dia width='400'}
 import NnClassifierDia
@@ -807,36 +661,6 @@ FIXME: Perhaps we should use lenses.
 >                       , layerFunction' = layerFunction' x
 >                       }
 
-> stepOnceStoch :: Double ->
->                  Double ->
->                  V.Vector Double ->
->                  V.Vector Double ->
->                  V.Vector Double
-> stepOnceStoch gamma y x theta =
->   V.zipWith (-) theta (V.map (* gamma) $ del theta)
->   where
->     del = delLogLikelihood y x
-
-> stepOnceStoch' :: Double ->
->                  Double ->
->                  V.Vector Double ->
->                  V.Vector Double ->
->                  V.Vector Double
-> stepOnceStoch' gamma y x theta =
->   V.zipWith (-) theta (V.map (* gamma) $ del theta)
->   where
->     del = delCost y x
-
-> delCost :: Floating a =>
->                     a ->
->                     V.Vector a ->
->                     V.Vector a ->
->                     V.Vector a
-> delCost y x = grad f
->   where
->     f theta = cost theta (auto y) (V.map auto x)
-
-
 Working gradient descent start
 
 > delta :: Floating a => a
@@ -884,21 +708,6 @@ Working gradient descent start
 
 Working gradient descent end
 
-
-> logLikelihood :: Floating a => V.Vector a -> a -> V.Vector a -> a
-> logLikelihood theta y x = y * log (logit z) +
->                           (1 - y) * log (1 - logit z)
->   where
->     z = V.sum $ V.zipWith (*) theta x
-
-> delLogLikelihood :: Floating a =>
->                     a ->
->                     V.Vector a ->
->                     V.Vector a ->
->                     V.Vector a
-> delLogLikelihood y x = grad f
->   where
->     f theta = logLikelihood theta (auto y) (V.map auto x)
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
@@ -1009,8 +818,6 @@ We can plot the populations we wish to distinguish by sampling.
 >       w2' :: (Random a, Floating a) => [[a]]
 >       w2' = randomWeightMatrix' nNodes nDigits 42
 >       initialNet  = buildBackpropNet  lRate [w1, w2] tanhAS
->       initialNet' :: BackpropNet' Double
->       initialNet' = buildBackpropNet' lRate [w1', w2'] tanhAS
 >       testNet = buildBackpropNet' lRate [[[0.1, 0.1]]] (ActivationFunction logit)
 >       testNet' = buildBackpropNet' lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
 >
@@ -1029,30 +836,6 @@ We can plot the populations we wish to distinguish by sampling.
 >       ws = V.map fst createSample
 >       xs = V.map (V.cons 1.0 . V.singleton) ws
 
--- >       baz' = V.scanl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
--- >                                                          (V.fromList [1.0, v]) s)
--- >                       (V.fromList [0.1, 0.1])
--- >                       (V.zip us vs)
--- >       bar1 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
--- >                                                          (V.fromList [1.0, v]) s)
--- >                       bar
--- >                       (V.zip us vs)
--- >       bar2 = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
--- >                                                          (V.fromList [1.0, v]) s)
--- >                       bar1
--- >                       (V.zip us vs)
-
->   printf "Original theta %s\n" $
->     show $ map layerWeights' $ layers' testNet
->   printf "Original theta %s\n" $
->     show $ map layerWeights' $ layers' testNet'
->   printf "Hand crafted cost %s\n" $
->     show $ cost (V.fromList [0.1, 0.1]) (fromIntegral u) (V.fromList [1.0, v])
->   printf "Neural net cost %s\n" $
->     show $ costFn u [v] testNet
->   printf "Neural net cost %s\n" $
->     show $ costFn' u [v] testNet'
->
 >   let vals :: V.Vector (Double, V.Vector Double)
 >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
 >
@@ -1076,36 +859,6 @@ We can plot the populations we wish to distinguish by sampling.
 >   let foo'' = V.scanl' (\s (u, v) -> stepOnce' lRate u [v] s) testNet'
 >                        (V.zip (V.map fromIntegral us) vs)
 >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo''
->   putStrLn $ show $ delCost (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
-
->   let baz = stepOnceStoch' lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
->   printf "Squares: %s\n" $ show $ baz
->   let baz' = stepOnceStoch lRate (fromIntegral u) (V.fromList [1.0, v]) (V.fromList [0.1, 0.1])
->   printf "Loglikelihood: %s\n" $ show baz'
->   let bar = V.foldl' (\s (u, v) -> stepOnceStoch' lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                      (V.fromList [0.1, 0.1])
->                      (V.zip us vs)
->   putStrLn $ show $ bar
->   let bar' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                       (V.fromList [0.1, 0.1])
->                       (V.zip us vs)
->   putStrLn $ show $ bar'
->   let bar1' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                        bar'
->                       (V.zip us vs)
->   putStrLn $ show $ bar1'
->   let bar2' = V.foldl' (\s (u, v) -> stepOnceStoch lRate (fromIntegral u)
->                                                          (V.fromList [1.0, v]) s)
->                        bar1'
->                       (V.zip us vs)
->   putStrLn $ show $ bar2'
-
--- >   putStrLn $ show $ baz'
--- >   putStrLn $ show $ bar1
--- >   putStrLn $ show $ bar2
 
 >   putStrLn $ show $ extractWeights testNet
 >
