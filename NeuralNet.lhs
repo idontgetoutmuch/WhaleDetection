@@ -9,13 +9,13 @@ Neural networks are a method for classifying data based on a theory of
 how biological systems operate. They can also be viewed as a
 generalization of logistic regression. A method for determining the
 coefficients of a given model, backpropagation, was developed in the
-1970's and rediscovered in the 1980'.
+1970's and rediscovered in the 1980's.
 
 The article "A Functional Approach to Neural Networks" in the [Monad
 Reader][MonadReader] shows how to use a neural network to classify
 handwritten digits in the [MNIST database][MNIST] using backpropagation.
 
-  [MonadReader]: http://themonadreader.files.wordpress.com/2013/03/issue21.pdf
+  [MonadReader]: http://themonadreader.files.wordpress.com/2013/03/issue214.pdf
   [MNIST]: http://yann.lecun.com/exdb/mnist/
   [LeCunCortesMnist]: http://yann.lecun.com/exdb/mnist/
 
@@ -30,13 +30,6 @@ automatic differentiation".
   [Backpropagation]: http://en.wikipedia.org/wiki/Backpropagation
   [AutomaticDifferentiation]: http://en.wikipedia.org/wiki/Automatic_differentiation
   [Domke2009a]: http://justindomke.wordpress.com/2009/02/17/automatic-differentiation-the-most-criminally-underused-tool-in-the-potential-machine-learning-toolbox/
-
-
-Acknowledgements
----------------
-
-The authors of the [MonadReader][MonadReader]: Amy de Buitléir,
-Michael Russell and Mark Daly.
 
 Haskell Foreword
 ----------------
@@ -88,24 +81,6 @@ For use in the appendix.
 
 Neural Networks
 ---------------
-
-
-We (or rather the authors of the [MonadReader article][MonadReader])
-represent an image as a reocord; the pixels are represented using an
-8-bit grayscale.
-
-> data Image = Image {
->       iRows    :: Int
->     , iColumns :: Int
->     , iPixels  :: [Word8]
->     } deriving (Eq, Show)
-
-A labelled image contains the image and what this image actually
-represents e.g. the image of the numeral 9 could and should be
-represented by the value 9.
-
-> type LabelledImage a = ([a], Int)
-
 
 We follow [@rojas1996neural;@Bishop:2006:PRM:1162264]. We are given a training set:
 
@@ -234,298 +209,14 @@ And finally we can apply gradient descent.
 >     where
 >       del = delTotalCost y x
 
-Backpropagation
----------------
+Neural Network Representation
+-----------------------------
 
-As with logistic regression, our goal is to find weights for the
-neural network which minimises this cost function. The method that is
-used in backpropagation to is to initialise the weights to some small
-non-zero amount and then use the method of steepest descent (aka
-gradient descent). The idea is that if $f$ is a function of several
-variables then to find its minimum value, one ought to take a small
-step in the direction in which it is decreasing most quickly and
-repeat until no step in any direction results in a decrease. The
-analogy is that if one is walking in the mountains then the quickest
-way down is to walk in the direction which goes down most steeply. Of
-course one get stuck at a local minimum rather than the global minimum
-but from a machine learning point of view this may be acceptable;
-alternatively one may start at random points in the search space and
-check they all give the same minimum.
+Let us borrow and generalize the data structures used in 
+["A Functional Approach to Neural Networks"][MonadReader].
 
-We therefore need calculate the gradient of the loss function with
-respect to the weights (since we need to minimise the cost
-function). In other words we need to find:
-
-$$
-\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
-$$
-
-Once we have this we can take our random starting position and move
-down the steepest gradient:
-
-$$
-w'_i = w_i - \gamma\frac{\partial E}{\partial w_i}
-$$
-
-where $\gamma$ is the step length known in machine learning parlance
-as the learning rate.
-
-
-The implementation below is a modified version of [MonadLayer].
-
-We represent a layer as record consisting of the matrix of weights and
-the activation function.
-
-> data Layer =
->   Layer
->   {
->     layerWeights  :: Matrix Double,
->     layerFunction :: ActivationFunction
->   }
-
-The activation function itself is a function which takes any type in
-the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
-
-> newtype ActivationFunction =
->   ActivationFunction
->   {
->     activationFunction :: Floating a => a -> a
->   }
-
-Our neural network consists of a list of layers together with a learning rate.
-
-> data BackpropNet = BackpropNet
->     {
->       layers :: [Layer],
->       learningRate :: Double
->     }
-
-The constructor function _buildBackPropnet_ does nothing more than
-populate _BackPropNet_ checking that all the matrices of weights are
-compatible.  It takes a learning rate, a list of matrices of weights
-for each layer, a single common activation function and produce a
-neural network.
-
-> buildBackpropNet ::
->   Double ->
->   [Matrix Double] ->
->   ActivationFunction ->
->   BackpropNet
-> buildBackpropNet learningRate ws f =
->   BackpropNet {
->       layers       = map buildLayer checkedWeights
->     , learningRate = learningRate
->     }
->   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = Layer { layerWeights  = w
->                                , layerFunction = f
->                                }
->         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
->         checkDimensions w1 w2 =
->           if rows w1 == cols w2
->           then w2
->           else error "Inconsistent dimensions in weight matrix"
-
-We keep a record of calculations at each layer in the neural network.
-
-> data PropagatedLayer
+> data PropagatedLayer a
 >     = PropagatedLayer
->         {
->           propLayerIn         :: ColumnVector Double,
->           propLayerOut        :: ColumnVector Double,
->           propLayerActFun'Val :: ColumnVector Double,
->           propLayerWeights    :: Matrix Double,
->           propLayerActFun     :: ActivationFunction
->         }
->     | PropagatedSensorLayer
->         {
->           propLayerOut :: ColumnVector Double
->         }
-
-We take a record of the calculations at one layer, a layer and produce
-the record of the calculations at the next layer.
-
-> propagate :: PropagatedLayer -> Layer -> PropagatedLayer
-> propagate layerJ layerK = PropagatedLayer
->         {
->           propLayerIn         = layerJOut,
->           propLayerOut        = mapMatrix f a,
->           propLayerActFun'Val = mapMatrix (diff f) a,
->           propLayerWeights    = weights,
->           propLayerActFun     = layerFunction layerK
->         }
->   where layerJOut = propLayerOut layerJ
->         weights   = layerWeights layerK
->         a         = weights <> layerJOut
->         f :: Floating a => a -> a
->         f = activationFunction $ layerFunction layerK
-
-With this we can take an input to the neural network, the neural
-network itself and produce a collection of records of the calculations
-at each layer.
-
-> propagateNet :: ColumnVector Double -> BackpropNet -> [PropagatedLayer]
-> propagateNet input net = tail calcs
->   where calcs = scanl propagate layer0 (layers net)
->         layer0 = PropagatedSensorLayer $ validateInput net input
->
->         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
->         validateInput net = validateInputValues . validateInputDimensions net
->
->         validateInputDimensions ::
->           BackpropNet ->
->           ColumnVector Double ->
->           ColumnVector Double
->         validateInputDimensions net input =
->           if got == expected
->           then input
->           else error ("Input pattern has " ++ show got ++ " bits, but " ++
->                       show expected ++ " were expected")
->           where got      = rows input
->                 expected = inputWidth $ head $ layers net
->
->         validateInputValues :: ColumnVector Double -> ColumnVector Double
->         validateInputValues input =
->           if (minimum ns >= 0) && (maximum ns <= 1)
->           then input
->           else error "Input bits outside of range [0,1]"
->           where
->             ns = toList ( flatten input )
->
->         inputWidth :: Layer -> Int
->         inputWidth = cols . layerWeights
-
-
-We keep a record of the back propagation calculations at each layer in
-the neural network:
-
-* The grad of the cost function with respect to the outputs of the layer.
-* The grad of the cost function with respect to the weights of the layer.
-* The value of the derivative of the activation function.
-* The inputs to the layer.
-* The outputs from the layer.
-* The activation function.
-
-> data BackpropagatedLayer = BackpropagatedLayer
->     {
->       backpropOutGrad    :: ColumnVector Double,
->       backpropWeightGrad :: Matrix Double,
->       backpropActFun'Val :: ColumnVector Double,
->       backpropIn         :: ColumnVector Double,
->       backpropOut        :: ColumnVector Double,
->       backpropWeights    :: Matrix Double,
->       backPropActFun     :: ActivationFunction
->     }
-
-Propagate the inputs backward through this layer to produce an output.
-
-> backpropagate :: PropagatedLayer ->
->                  BackpropagatedLayer ->
->                  BackpropagatedLayer
-> backpropagate layerJ layerK = BackpropagatedLayer
->     {
->       backpropOutGrad    = dazzleJ,
->       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
->       backpropActFun'Val = f'aJ,
->       backpropIn         = bpIn,
->       backpropOut        = propLayerOut layerJ,
->       backpropWeights    = propLayerWeights layerJ,
->       backPropActFun     = propLayerActFun layerJ
->     }
->     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
->           dazzleK = backpropOutGrad layerK
->           f'aK    = backpropActFun'Val layerK
->           f'aJ    = propLayerActFun'Val layerJ
->           bpIn    = propLayerIn layerJ
-
-> errorGrad :: ColumnVector Double ->
->              ColumnVector Double ->
->              ColumnVector Double ->
->              Matrix Double
-> errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
-
-> backpropagateFinalLayer :: PropagatedLayer ->
->                            ColumnVector Double ->
->                            BackpropagatedLayer
-> backpropagateFinalLayer l t = BackpropagatedLayer
->     {
->       backpropOutGrad    = dazzle,
->       backpropWeightGrad = errorGrad dazzle f'a (propLayerIn l),
->       backpropActFun'Val = f'a,
->       backpropIn         = propLayerIn l,
->       backpropOut        = propLayerOut l,
->       backpropWeights    = propLayerWeights l,
->       backPropActFun     = propLayerActFun l
->     }
->     where dazzle =  propLayerOut l - t
->           f'a    = propLayerActFun'Val l
-
-Move backward (from right to left) through the neural network
-i.e. this is backpropagation itself.
-
-> backpropagateNet :: ColumnVector Double ->
->                     [PropagatedLayer] ->
->                     [BackpropagatedLayer]
-> backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
->   where hiddenLayers = init layers
->         layerL = backpropagateFinalLayer (last layers) target
-
-Now that we know all the derivatives with respect to the weights in
-every layer, we can create a new layer by moving one step in the
-direction of steepest descent.
-
-> update :: Double ->
->           BackpropagatedLayer ->
->           Layer
-> update rate layer = Layer
->         {
->           layerWeights = wNew,
->           layerFunction = backPropActFun layer
->         }
->     where wOld = backpropWeights layer
->           delW = rate `scale` backpropWeightGrad layer
->           wNew = wOld - delW
-
-Now we can train our network by taking a list of inputs and outputs
-using each pair to move a step in the direction of steepest descent.
-
-> train :: BackpropNet ->
->          [Double] ->
->          [Double] ->
->          BackpropNet
-> train net input target =
->   BackpropNet { layers       = newLayers
->               , learningRate = rate
->               }
->   where newLayers            = map (update $ learningRate net) backpropagatedLayers
->         rate                 = learningRate net
->         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
->         propagatedLayers     = propagateNet x net
->         x                    = listToColumnVector (1:input)
-
-> trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
-> trainOnePattern trainingData net = train net input target
->   where input = fst trainingData
->         digit = snd trainingData
->         target = targets !! digit
->
-> targets :: Floating a => [[a]]
-> targets = map row [0 .. 2 {- nDigits -} - 1]
->   where
->     row m = concat [x, 1.0 : y]
->       where
->         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
-
-> trainWithAllPatterns :: BackpropNet ->
->                         [([Double], Int)]
->                         -> BackpropNet
-> trainWithAllPatterns = foldl' (flip trainOnePattern)
-
-Automated Differentation
-------------------------
-
-> data PropagatedLayer' a
->     = PropagatedLayer'
 >         {
 >           propLayerIn'         :: [a],
 >           propLayerOut'        :: [a],
@@ -557,8 +248,8 @@ Automated Differentation
 > matMult :: Num a => [[a]] -> [a] -> [a]
 > matMult m v = map (\r -> sum $ zipWith (*) r v) m
 
-> propagate' :: Floating a => PropagatedLayer' a -> Layer' a -> PropagatedLayer' a
-> propagate' layerJ layerK = PropagatedLayer'
+> propagate' :: Floating a => PropagatedLayer a -> Layer' a -> PropagatedLayer a
+> propagate' layerJ layerK = PropagatedLayer
 >         {
 >           propLayerIn'         = layerJOut,
 >           propLayerOut'        = map f a,
@@ -572,7 +263,7 @@ Automated Differentation
 >         f :: Floating a => a -> a
 >         f = activationFunction $ layerFunction' layerK
 
-> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet' a -> [PropagatedLayer' a]
+> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet' a -> [PropagatedLayer a]
 > propagateNet' input net = tail calcs
 >   where calcs = scanl propagate' layer0 (layers' net)
 >         layer0 = PropagatedSensorLayer' $ validateInput net input
@@ -883,6 +574,22 @@ We can plot the populations we wish to distinguish by sampling.
 >   let percentage = 100.0 * score / count
 >   putStrLn $ "I got " ++ show percentage ++ "% correct"
 
+We (or rather the authors of the [MonadReader article][MonadReader])
+represent an image as a reocord; the pixels are represented using an
+8-bit grayscale.
+
+> data Image = Image {
+>       iRows    :: Int
+>     , iColumns :: Int
+>     , iPixels  :: [Word8]
+>     } deriving (Eq, Show)
+
+A labelled image contains the image and what this image actually
+represents e.g. the image of the numeral 9 could and should be
+represented by the value 9.
+
+> type LabelledImage a = ([a], Int)
+
 > deserialiseLabels :: Get (Word32, Word32, [Word8])
 > deserialiseLabels = do
 >   magicNumber <- getWord32be
@@ -981,4 +688,292 @@ FIXME: This looks a bit yuk
 > normalisedData' image = map normalisePixel (iPixels image)
 >   where
 >     normalisePixel p = (fromIntegral p) / 255.0
+
+
+Backpropagation
+---------------
+
+As with logistic regression, our goal is to find weights for the
+neural network which minimises this cost function. The method that is
+used in backpropagation to is to initialise the weights to some small
+non-zero amount and then use the method of steepest descent (aka
+gradient descent). The idea is that if $f$ is a function of several
+variables then to find its minimum value, one ought to take a small
+step in the direction in which it is decreasing most quickly and
+repeat until no step in any direction results in a decrease. The
+analogy is that if one is walking in the mountains then the quickest
+way down is to walk in the direction which goes down most steeply. Of
+course one get stuck at a local minimum rather than the global minimum
+but from a machine learning point of view this may be acceptable;
+alternatively one may start at random points in the search space and
+check they all give the same minimum.
+
+We therefore need calculate the gradient of the loss function with
+respect to the weights (since we need to minimise the cost
+function). In other words we need to find:
+
+$$
+\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
+$$
+
+Once we have this we can take our random starting position and move
+down the steepest gradient:
+
+$$
+w'_i = w_i - \gamma\frac{\partial E}{\partial w_i}
+$$
+
+where $\gamma$ is the step length known in machine learning parlance
+as the learning rate.
+
+
+The implementation below is a modified version of [MonadLayer].
+
+We represent a layer as record consisting of the matrix of weights and
+the activation function.
+
+> data Layer =
+>   Layer
+>   {
+>     layerWeights  :: Matrix Double,
+>     layerFunction :: ActivationFunction
+>   }
+
+The activation function itself is a function which takes any type in
+the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
+
+> newtype ActivationFunction =
+>   ActivationFunction
+>   {
+>     activationFunction :: Floating a => a -> a
+>   }
+
+Our neural network consists of a list of layers together with a learning rate.
+
+> data BackpropNet = BackpropNet
+>     {
+>       layers :: [Layer],
+>       learningRate :: Double
+>     }
+
+The constructor function _buildBackPropnet_ does nothing more than
+populate _BackPropNet_ checking that all the matrices of weights are
+compatible.  It takes a learning rate, a list of matrices of weights
+for each layer, a single common activation function and produce a
+neural network.
+
+> buildBackpropNet ::
+>   Double ->
+>   [Matrix Double] ->
+>   ActivationFunction ->
+>   BackpropNet
+> buildBackpropNet learningRate ws f =
+>   BackpropNet {
+>       layers       = map buildLayer checkedWeights
+>     , learningRate = learningRate
+>     }
+>   where checkedWeights = scanl1 checkDimensions ws
+>         buildLayer w   = Layer { layerWeights  = w
+>                                , layerFunction = f
+>                                }
+>         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
+>         checkDimensions w1 w2 =
+>           if rows w1 == cols w2
+>           then w2
+>           else error "Inconsistent dimensions in weight matrix"
+
+We keep a record of calculations at each layer in the neural network.
+
+> data PropagatedLayerOld
+>     = PropagatedLayerOld
+>         {
+>           propLayerInOld         :: ColumnVector Double,
+>           propLayerOut        :: ColumnVector Double,
+>           propLayerActFun'Val :: ColumnVector Double,
+>           propLayerWeights    :: Matrix Double,
+>           propLayerActFun     :: ActivationFunction
+>         }
+>     | PropagatedSensorLayer
+>         {
+>           propLayerOut :: ColumnVector Double
+>         }
+
+We take a record of the calculations at one layer, a layer and produce
+the record of the calculations at the next layer.
+
+> propagate :: PropagatedLayerOld -> Layer -> PropagatedLayerOld
+> propagate layerJ layerK = PropagatedLayerOld
+>         {
+>           propLayerInOld         = layerJOut,
+>           propLayerOut        = mapMatrix f a,
+>           propLayerActFun'Val = mapMatrix (diff f) a,
+>           propLayerWeights    = weights,
+>           propLayerActFun     = layerFunction layerK
+>         }
+>   where layerJOut = propLayerOut layerJ
+>         weights   = layerWeights layerK
+>         a         = weights <> layerJOut
+>         f :: Floating a => a -> a
+>         f = activationFunction $ layerFunction layerK
+
+With this we can take an input to the neural network, the neural
+network itself and produce a collection of records of the calculations
+at each layer.
+
+> propagateNet :: ColumnVector Double -> BackpropNet -> [PropagatedLayerOld]
+> propagateNet input net = tail calcs
+>   where calcs = scanl propagate layer0 (layers net)
+>         layer0 = PropagatedSensorLayer $ validateInput net input
+>
+>         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
+>         validateInput net = validateInputValues . validateInputDimensions net
+>
+>         validateInputDimensions ::
+>           BackpropNet ->
+>           ColumnVector Double ->
+>           ColumnVector Double
+>         validateInputDimensions net input =
+>           if got == expected
+>           then input
+>           else error ("Input pattern has " ++ show got ++ " bits, but " ++
+>                       show expected ++ " were expected")
+>           where got      = rows input
+>                 expected = inputWidth $ head $ layers net
+>
+>         validateInputValues :: ColumnVector Double -> ColumnVector Double
+>         validateInputValues input =
+>           if (minimum ns >= 0) && (maximum ns <= 1)
+>           then input
+>           else error "Input bits outside of range [0,1]"
+>           where
+>             ns = toList ( flatten input )
+>
+>         inputWidth :: Layer -> Int
+>         inputWidth = cols . layerWeights
+
+
+We keep a record of the back propagation calculations at each layer in
+the neural network:
+
+* The grad of the cost function with respect to the outputs of the layer.
+* The grad of the cost function with respect to the weights of the layer.
+* The value of the derivative of the activation function.
+* The inputs to the layer.
+* The outputs from the layer.
+* The activation function.
+
+> data BackpropagatedLayer = BackpropagatedLayer
+>     {
+>       backpropOutGrad    :: ColumnVector Double,
+>       backpropWeightGrad :: Matrix Double,
+>       backpropActFun'Val :: ColumnVector Double,
+>       backpropIn         :: ColumnVector Double,
+>       backpropOut        :: ColumnVector Double,
+>       backpropWeights    :: Matrix Double,
+>       backPropActFun     :: ActivationFunction
+>     }
+
+Propagate the inputs backward through this layer to produce an output.
+
+> backpropagate :: PropagatedLayerOld ->
+>                  BackpropagatedLayer ->
+>                  BackpropagatedLayer
+> backpropagate layerJ layerK = BackpropagatedLayer
+>     {
+>       backpropOutGrad    = dazzleJ,
+>       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
+>       backpropActFun'Val = f'aJ,
+>       backpropIn         = bpIn,
+>       backpropOut        = propLayerOut layerJ,
+>       backpropWeights    = propLayerWeights layerJ,
+>       backPropActFun     = propLayerActFun layerJ
+>     }
+>     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
+>           dazzleK = backpropOutGrad layerK
+>           f'aK    = backpropActFun'Val layerK
+>           f'aJ    = propLayerActFun'Val layerJ
+>           bpIn    = propLayerInOld layerJ
+
+> errorGrad :: ColumnVector Double ->
+>              ColumnVector Double ->
+>              ColumnVector Double ->
+>              Matrix Double
+> errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
+
+> backpropagateFinalLayer :: PropagatedLayerOld ->
+>                            ColumnVector Double ->
+>                            BackpropagatedLayer
+> backpropagateFinalLayer l t = BackpropagatedLayer
+>     {
+>       backpropOutGrad    = dazzle,
+>       backpropWeightGrad = errorGrad dazzle f'a (propLayerInOld l),
+>       backpropActFun'Val = f'a,
+>       backpropIn         = propLayerInOld l,
+>       backpropOut        = propLayerOut l,
+>       backpropWeights    = propLayerWeights l,
+>       backPropActFun     = propLayerActFun l
+>     }
+>     where dazzle =  propLayerOut l - t
+>           f'a    = propLayerActFun'Val l
+
+Move backward (from right to left) through the neural network
+i.e. this is backpropagation itself.
+
+> backpropagateNet :: ColumnVector Double ->
+>                     [PropagatedLayerOld] ->
+>                     [BackpropagatedLayer]
+> backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
+>   where hiddenLayers = init layers
+>         layerL = backpropagateFinalLayer (last layers) target
+
+Now that we know all the derivatives with respect to the weights in
+every layer, we can create a new layer by moving one step in the
+direction of steepest descent.
+
+> update :: Double ->
+>           BackpropagatedLayer ->
+>           Layer
+> update rate layer = Layer
+>         {
+>           layerWeights = wNew,
+>           layerFunction = backPropActFun layer
+>         }
+>     where wOld = backpropWeights layer
+>           delW = rate `scale` backpropWeightGrad layer
+>           wNew = wOld - delW
+
+Now we can train our network by taking a list of inputs and outputs
+using each pair to move a step in the direction of steepest descent.
+
+> train :: BackpropNet ->
+>          [Double] ->
+>          [Double] ->
+>          BackpropNet
+> train net input target =
+>   BackpropNet { layers       = newLayers
+>               , learningRate = rate
+>               }
+>   where newLayers            = map (update $ learningRate net) backpropagatedLayers
+>         rate                 = learningRate net
+>         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
+>         propagatedLayers     = propagateNet x net
+>         x                    = listToColumnVector (1:input)
+
+> trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
+> trainOnePattern trainingData net = train net input target
+>   where input = fst trainingData
+>         digit = snd trainingData
+>         target = targets !! digit
+>
+> targets :: Floating a => [[a]]
+> targets = map row [0 .. 2 {- nDigits -} - 1]
+>   where
+>     row m = concat [x, 1.0 : y]
+>       where
+>         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
+
+> trainWithAllPatterns :: BackpropNet ->
+>                         [([Double], Int)]
+>                         -> BackpropNet
+> trainWithAllPatterns = foldl' (flip trainOnePattern)
 
