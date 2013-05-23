@@ -238,8 +238,8 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >           propLayerOut :: [a]
 >         } deriving (Functor, Foldable, Traversable)
 
-> data Layer' a =
->   Layer'
+> data Layer a =
+>   Layer
 >   {
 >     layerWeights'  :: [[a]],
 >     layerFunction' :: ActivationFunction
@@ -250,14 +250,14 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 
 > data BackpropNet' a = BackpropNet'
 >     {
->       layers'       :: [Layer' a],
+>       layers'       :: [Layer a],
 >       learningRate' :: Double
 >     } deriving (Functor, Foldable, Traversable)
 
 > matMult :: Num a => [[a]] -> [a] -> [a]
 > matMult m v = map (\r -> sum $ zipWith (*) r v) m
 
-> propagate' :: Floating a => PropagatedLayer a -> Layer' a -> PropagatedLayer a
+> propagate' :: Floating a => PropagatedLayer a -> Layer a -> PropagatedLayer a
 > propagate' layerJ layerK = PropagatedLayer
 >         {
 >           propLayerIn         = layerJOut,
@@ -303,7 +303,7 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >     , learningRate' = learningRate
 >     }
 >   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = Layer' { layerWeights'  = w
+>         buildLayer w   = Layer { layerWeights'  = w
 >                                 , layerFunction' = f
 >                                 }
 >         checkDimensions :: [[a]] -> [[a]] -> [[a]]
@@ -411,11 +411,11 @@ FIXME: We should throw an error if we try to add layers with non-matching functi
 
 FIXME: Perhaps we should use lenses.
 
-> instance Num a => Num (Layer' a) where
+> instance Num a => Num (Layer a) where
 >   (+) = addLayer
 >
-> addLayer :: Num a => Layer' a -> Layer' a -> Layer' a
-> addLayer x y = Layer' { layerWeights'  = zipWith (zipWith (+)) (layerWeights' x) (layerWeights' y)
+> addLayer :: Num a => Layer a -> Layer a -> Layer a
+> addLayer x y = Layer { layerWeights'  = zipWith (zipWith (+)) (layerWeights' x) (layerWeights' y)
 >                       , layerFunction' = layerFunction' x
 >                       }
 
@@ -741,8 +741,8 @@ The implementation below is a modified version of [MonadLayer].
 We represent a layer as record consisting of the matrix of weights and
 the activation function.
 
-> data Layer =
->   Layer
+> data LayerOld =
+>   LayerOld
 >   {
 >     layerWeights  :: Matrix Double,
 >     layerFunction :: ActivationFunction
@@ -752,7 +752,7 @@ Our neural network consists of a list of layers together with a learning rate.
 
 > data BackpropNet = BackpropNet
 >     {
->       layers :: [Layer],
+>       layers :: [LayerOld],
 >       learningRate :: Double
 >     }
 
@@ -773,7 +773,7 @@ neural network.
 >     , learningRate = learningRate
 >     }
 >   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = Layer { layerWeights  = w
+>         buildLayer w   = LayerOld { layerWeights  = w
 >                                , layerFunction = f
 >                                }
 >         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
@@ -801,7 +801,7 @@ We keep a record of calculations at each layer in the neural network.
 We take a record of the calculations at one layer, a layer and produce
 the record of the calculations at the next layer.
 
-> propagate :: PropagatedLayerOld -> Layer -> PropagatedLayerOld
+> propagate :: PropagatedLayerOld -> LayerOld -> PropagatedLayerOld
 > propagate layerJ layerK = PropagatedLayerOld
 >         {
 >           propLayerInOld         = layerJOut,
@@ -848,7 +848,7 @@ at each layer.
 >           where
 >             ns = toList ( flatten input )
 >
->         inputWidth :: Layer -> Int
+>         inputWidth :: LayerOld -> Int
 >         inputWidth = cols . layerWeights
 
 
@@ -932,8 +932,8 @@ direction of steepest descent.
 
 > update :: Double ->
 >           BackpropagatedLayer ->
->           Layer
-> update rate layer = Layer
+>           LayerOld
+> update rate layer = LayerOld
 >         {
 >           layerWeights = wNew,
 >           layerFunction = backPropActFun layer
