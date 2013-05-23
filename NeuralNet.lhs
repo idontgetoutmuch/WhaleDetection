@@ -229,11 +229,10 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >         {
 >           propLayerIn         :: [a],
 >           propLayerOut        :: [a],
->           propLayerActFun'Val :: [a],
 >           propLayerWeights    :: [[a]],
 >           propLayerActFun     :: ActivationFunction
 >         }
->     | PropagatedSensorLayer'
+>     | PropagatedSensorLayer
 >         {
 >           propLayerOut :: [a]
 >         } deriving (Functor, Foldable, Traversable)
@@ -241,18 +240,22 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 > data Layer a =
 >   Layer
 >   {
->     layerWeights'  :: [[a]],
->     layerFunction' :: ActivationFunction
+>     layerWeights  :: [[a]],
+>     layerFunction :: ActivationFunction
 >   } deriving (Functor, Foldable, Traversable)
 
-> extractWeights :: BackpropNet' a -> [[[a]]]
-> extractWeights x = map layerWeights' $ layers' x
-
-> data BackpropNet' a = BackpropNet'
+> data BackpropNet a = BackpropNet
 >     {
->       layers'       :: [Layer a],
->       learningRate' :: Double
+>       layers       :: [Layer a],
+>       learningRate :: Double
 >     } deriving (Functor, Foldable, Traversable)
+
+> extractWeights :: BackpropNet a -> [[[a]]]
+> extractWeights x = map layerWeights $ layers x
+
+Sadly we have to use an inefficient calculation to multiply matrices; see this [email][ADMatrixMult] for further details.
+
+  [ADMatrixMult]: http://www.haskell.org/pipermail/haskell-cafe/2013-April/107543.html
 
 > matMult :: Num a => [[a]] -> [a] -> [a]
 > matMult m v = map (\r -> sum $ zipWith (*) r v) m
@@ -262,20 +265,19 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >         {
 >           propLayerIn         = layerJOut,
 >           propLayerOut        = map f a,
->           propLayerActFun'Val = map (diff f) a,
 >           propLayerWeights    = weights,
->           propLayerActFun     = layerFunction' layerK
+>           propLayerActFun     = layerFunction layerK
 >         }
 >   where layerJOut = propLayerOut layerJ
->         weights   = layerWeights' layerK
+>         weights   = layerWeights layerK
 >         a = weights `matMult` layerJOut
 >         f :: Floating a => a -> a
->         f = activationFunction $ layerFunction' layerK
+>         f = activationFunction $ layerFunction layerK
 
-> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet' a -> [PropagatedLayer a]
+> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet a -> [PropagatedLayer a]
 > propagateNet' input net = tail calcs
->   where calcs = scanl propagate' layer0 (layers' net)
->         layer0 = PropagatedSensorLayer' $ validateInput net input
+>   where calcs = scanl propagate' layer0 (layers net)
+>         layer0 = PropagatedSensorLayer $ validateInput net input
 >
 >         validateInput net = validateInputValues . validateInputDimensions net
 >
@@ -285,7 +287,7 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >           else error ("Input pattern has " ++ show got ++ " bits, but " ++
 >                       show expected ++ " were expected")
 >           where got      = length input
->                 expected = length $ head $ layerWeights' $ head $ layers' net
+>                 expected = length $ head $ layerWeights $ head $ layers net
 >
 >         validateInputValues input =
 >           if (minimum input >= 0) && (maximum input <= 1)
@@ -296,15 +298,15 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >   Double ->
 >   [[[a]]] ->
 >   ActivationFunction ->
->   BackpropNet' a
+>   BackpropNet a
 > buildBackpropNet' learningRate ws f =
->   BackpropNet' {
->       layers'       = map buildLayer checkedWeights
->     , learningRate' = learningRate
+>   BackpropNet {
+>       layers       = map buildLayer checkedWeights
+>     , learningRate = learningRate
 >     }
 >   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = Layer { layerWeights'  = w
->                                 , layerFunction' = f
+>         buildLayer w   = Layer { layerWeights  = w
+>                                 , layerFunction = f
 >                                 }
 >         checkDimensions :: [[a]] -> [[a]] -> [[a]]
 >         checkDimensions w1 w2 =
@@ -316,18 +318,18 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >                         show (length $ head w1) ++ "\n" ++
 >                         show (length $ head w2)
 
-> evaluateBPN' :: (Floating a, Ord a) => BackpropNet' a -> [a] -> [a]
+> evaluateBPN' :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
 > evaluateBPN' net input = propLayerOut $ last calcs
 >   where calcs = propagateNet' (1:input) net
 >
-> costFn :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet' a -> a
+> costFn :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
 > costFn expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
 >   where
 >     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
 >     predicted = evaluateBPN' net input
 >     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
 
-> costFn' :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet' a -> a
+> costFn' :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
 > costFn' expectedDigit input net = -- trace ("\nWeights:" ++ show (extractWeights net) ++
 >                                   --        "\nb:" ++ show b ++
 >                                   --        "\nexpected:" ++ show (targets!!expectedDigit) ++
@@ -338,7 +340,7 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >     predicted = evaluateBPN' net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
-> totalCostNN :: (Floating a, Ord a, Show a) => V.Vector Int -> V.Vector [a] -> BackpropNet' a -> a
+> totalCostNN :: (Floating a, Ord a, Show a) => V.Vector Int -> V.Vector [a] -> BackpropNet a -> a
 > totalCostNN expectedDigits inputs net = (a + delta * b) / l
 >   where
 >     l = fromIntegral $ V.length expectedDigits
@@ -349,8 +351,8 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 > delTotalCostNN :: (Floating a, Ord a, Show a) =>
 >                   V.Vector Int ->
 >                   V.Vector [a] ->
->                   BackpropNet' a ->
->                   BackpropNet' a
+>                   BackpropNet a ->
+>                   BackpropNet a
 > delTotalCostNN expectedDigits inputs = grad f
 >   where
 >     f net = totalCostNN expectedDigits (V.map (map auto) inputs) net
@@ -358,8 +360,8 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 > delCostFn :: (Ord a, Floating a, Show a) =>
 >                          Int ->
 >                          [a] ->
->                          BackpropNet' a ->
->                          BackpropNet' a
+>                          BackpropNet a ->
+>                          BackpropNet a
 > delCostFn y x = grad f
 >   where
 >     f theta = costFn y (map auto x) theta
@@ -367,8 +369,8 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 > delCostFn' :: (Ord a, Floating a, Show a) =>
 >                          Int ->
 >                          [a] ->
->                          BackpropNet' a ->
->                          BackpropNet' a
+>                          BackpropNet a ->
+>                          BackpropNet a
 > delCostFn' y x = grad f
 >   where
 >     f theta = costFn' y (map auto x) theta
@@ -376,35 +378,35 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 > stepOnce :: Double ->
 >             Int ->
 >             [Double] ->
->             BackpropNet' Double ->
->             BackpropNet' Double
+>             BackpropNet Double ->
+>             BackpropNet Double
 > stepOnce gamma y x theta =
 >   theta + fmap (* (negate gamma)) (delCostFn y x theta)
 
 > stepOnce' :: Double ->
 >             Int ->
 >             [Double] ->
->             BackpropNet' Double ->
->             BackpropNet' Double
+>             BackpropNet Double ->
+>             BackpropNet Double
 > stepOnce' gamma y x theta =
 >   theta + fmap (* (negate gamma)) (delCostFn' y x theta)
 
 > stepOnceTotal :: Double ->
 >                  V.Vector Int ->
 >                  V.Vector [Double] ->
->                  BackpropNet' Double ->
->                  BackpropNet' Double
+>                  BackpropNet Double ->
+>                  BackpropNet Double
 > stepOnceTotal gamma y x net =
 >   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
 
 FIXME: See the FIXMEs below.
 
-> instance Num a => Num (BackpropNet' a) where
+> instance Num a => Num (BackpropNet a) where
 >   (+) = addBPN
 
-> addBPN :: Num a => BackpropNet' a -> BackpropNet' a -> BackpropNet' a
-> addBPN x y = BackpropNet' { layers' = zipWith (+) (layers' x) (layers' y)
->                           , learningRate' = learningRate' x
+> addBPN :: Num a => BackpropNet a -> BackpropNet a -> BackpropNet a
+> addBPN x y = BackpropNet { layers = zipWith (+) (layers x) (layers y)
+>                           , learningRate = learningRate x
 >                           }
 
 FIXME: We should throw an error if we try to add layers with non-matching functions.
@@ -415,17 +417,17 @@ FIXME: Perhaps we should use lenses.
 >   (+) = addLayer
 >
 > addLayer :: Num a => Layer a -> Layer a -> Layer a
-> addLayer x y = Layer { layerWeights'  = zipWith (zipWith (+)) (layerWeights' x) (layerWeights' y)
->                       , layerFunction' = layerFunction' x
+> addLayer x y = Layer { layerWeights  = zipWith (zipWith (+)) (layerWeights x) (layerWeights y)
+>                       , layerFunction = layerFunction x
 >                       }
 
 
-> evaluateBPN :: BackpropNet -> [Double] -> [Double]
+> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
 >   where calcs = propagateNet x net
 >         x = listToColumnVector (1:input)
 
-> evalOnePattern :: BackpropNet -> ([Double], Int) -> Int
+> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
 > evalOnePattern net trainingData =
 >   isMatch result target
 >   where input = fst trainingData
@@ -433,7 +435,7 @@ FIXME: Perhaps we should use lenses.
 >         rawResult = evaluateBPN net input
 >         result = interpret rawResult
 
-> evalAllPatterns :: BackpropNet -> [([Double], Int)] -> [Int]
+> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
 > evalAllPatterns = map . evalOnePattern
 
 
@@ -744,16 +746,16 @@ the activation function.
 > data LayerOld =
 >   LayerOld
 >   {
->     layerWeights  :: Matrix Double,
->     layerFunction :: ActivationFunction
+>     layerWeightsOld  :: Matrix Double,
+>     layerFunctionOld :: ActivationFunction
 >   }
 
 Our neural network consists of a list of layers together with a learning rate.
 
-> data BackpropNet = BackpropNet
+> data BackpropNetOld = BackpropNetOld
 >     {
->       layers :: [LayerOld],
->       learningRate :: Double
+>       layersOld :: [LayerOld],
+>       learningRateOld :: Double
 >     }
 
 The constructor function _buildBackPropnet_ does nothing more than
@@ -766,15 +768,15 @@ neural network.
 >   Double ->
 >   [Matrix Double] ->
 >   ActivationFunction ->
->   BackpropNet
+>   BackpropNetOld
 > buildBackpropNet learningRate ws f =
->   BackpropNet {
->       layers       = map buildLayer checkedWeights
->     , learningRate = learningRate
+>   BackpropNetOld {
+>       layersOld       = map buildLayer checkedWeights
+>     , learningRateOld = learningRate
 >     }
 >   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = LayerOld { layerWeights  = w
->                                , layerFunction = f
+>         buildLayer w   = LayerOld { layerWeightsOld  = w
+>                                , layerFunctionOld = f
 >                                }
 >         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
 >         checkDimensions w1 w2 =
@@ -793,7 +795,7 @@ We keep a record of calculations at each layer in the neural network.
 >           propLayerWeightsOld    :: Matrix Double,
 >           propLayerActFunOld     :: ActivationFunction
 >         }
->     | PropagatedSensorLayer
+>     | PropagatedSensorLayerOld
 >         {
 >           propLayerOutOld :: ColumnVector Double
 >         }
@@ -808,28 +810,28 @@ the record of the calculations at the next layer.
 >           propLayerOutOld        = mapMatrix f a,
 >           propLayerActFun'ValOld = mapMatrix (diff f) a,
 >           propLayerWeightsOld    = weights,
->           propLayerActFunOld     = layerFunction layerK
+>           propLayerActFunOld     = layerFunctionOld layerK
 >         }
 >   where layerJOut = propLayerOutOld layerJ
->         weights   = layerWeights layerK
+>         weights   = layerWeightsOld layerK
 >         a         = weights <> layerJOut
 >         f :: Floating a => a -> a
->         f = activationFunction $ layerFunction layerK
+>         f = activationFunction $ layerFunctionOld layerK
 
 With this we can take an input to the neural network, the neural
 network itself and produce a collection of records of the calculations
 at each layer.
 
-> propagateNet :: ColumnVector Double -> BackpropNet -> [PropagatedLayerOld]
+> propagateNet :: ColumnVector Double -> BackpropNetOld -> [PropagatedLayerOld]
 > propagateNet input net = tail calcs
->   where calcs = scanl propagate layer0 (layers net)
->         layer0 = PropagatedSensorLayer $ validateInput net input
+>   where calcs = scanl propagate layer0 (layersOld net)
+>         layer0 = PropagatedSensorLayerOld $ validateInput net input
 >
->         validateInput :: BackpropNet -> ColumnVector Double -> ColumnVector Double
+>         validateInput :: BackpropNetOld -> ColumnVector Double -> ColumnVector Double
 >         validateInput net = validateInputValues . validateInputDimensions net
 >
 >         validateInputDimensions ::
->           BackpropNet ->
+>           BackpropNetOld ->
 >           ColumnVector Double ->
 >           ColumnVector Double
 >         validateInputDimensions net input =
@@ -838,7 +840,7 @@ at each layer.
 >           else error ("Input pattern has " ++ show got ++ " bits, but " ++
 >                       show expected ++ " were expected")
 >           where got      = rows input
->                 expected = inputWidth $ head $ layers net
+>                 expected = inputWidth $ head $ layersOld net
 >
 >         validateInputValues :: ColumnVector Double -> ColumnVector Double
 >         validateInputValues input =
@@ -849,7 +851,7 @@ at each layer.
 >             ns = toList ( flatten input )
 >
 >         inputWidth :: LayerOld -> Int
->         inputWidth = cols . layerWeights
+>         inputWidth = cols . layerWeightsOld
 
 
 We keep a record of the back propagation calculations at each layer in
@@ -935,8 +937,8 @@ direction of steepest descent.
 >           LayerOld
 > update rate layer = LayerOld
 >         {
->           layerWeights = wNew,
->           layerFunction = backPropActFun layer
+>           layerWeightsOld = wNew,
+>           layerFunctionOld = backPropActFun layer
 >         }
 >     where wOld = backpropWeights layer
 >           delW = rate `scale` backpropWeightGrad layer
@@ -945,21 +947,21 @@ direction of steepest descent.
 Now we can train our network by taking a list of inputs and outputs
 using each pair to move a step in the direction of steepest descent.
 
-> train :: BackpropNet ->
+> train :: BackpropNetOld ->
 >          [Double] ->
 >          [Double] ->
->          BackpropNet
+>          BackpropNetOld
 > train net input target =
->   BackpropNet { layers       = newLayers
->               , learningRate = rate
+>   BackpropNetOld { layersOld       = newLayers
+>               , learningRateOld = rate
 >               }
->   where newLayers            = map (update $ learningRate net) backpropagatedLayers
->         rate                 = learningRate net
+>   where newLayers            = map (update $ learningRateOld net) backpropagatedLayers
+>         rate                 = learningRateOld net
 >         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
 >         propagatedLayers     = propagateNet x net
 >         x                    = listToColumnVector (1:input)
 
-> trainOnePattern :: ([Double], Int) -> BackpropNet -> BackpropNet
+> trainOnePattern :: ([Double], Int) -> BackpropNetOld -> BackpropNetOld
 > trainOnePattern trainingData net = train net input target
 >   where input = fst trainingData
 >         digit = snd trainingData
@@ -972,8 +974,8 @@ using each pair to move a step in the direction of steepest descent.
 >       where
 >         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
 
-> trainWithAllPatterns :: BackpropNet ->
+> trainWithAllPatterns :: BackpropNetOld ->
 >                         [([Double], Int)]
->                         -> BackpropNet
+>                         -> BackpropNetOld
 > trainWithAllPatterns = foldl' (flip trainOnePattern)
 
