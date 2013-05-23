@@ -212,21 +212,30 @@ And finally we can apply gradient descent.
 Neural Network Representation
 -----------------------------
 
-Let us borrow and generalize the data structures used in 
+Let us borrow, generalize and prune the data structures used in 
 ["A Functional Approach to Neural Networks"][MonadReader].
+
+The activation function itself is a function which takes any type in
+the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
+
+> newtype ActivationFunction =
+>   ActivationFunction
+>   {
+>     activationFunction :: Floating a => a -> a
+>   }
 
 > data PropagatedLayer a
 >     = PropagatedLayer
 >         {
->           propLayerIn'         :: [a],
->           propLayerOut'        :: [a],
->           propLayerActFun'Val' :: [a],
->           propLayerWeights'    :: [[a]],
->           propLayerActFun'     :: ActivationFunction
+>           propLayerIn         :: [a],
+>           propLayerOut        :: [a],
+>           propLayerActFun'Val :: [a],
+>           propLayerWeights    :: [[a]],
+>           propLayerActFun     :: ActivationFunction
 >         }
 >     | PropagatedSensorLayer'
 >         {
->           propLayerOut' :: [a]
+>           propLayerOut :: [a]
 >         } deriving (Functor, Foldable, Traversable)
 
 > data Layer' a =
@@ -251,13 +260,13 @@ Let us borrow and generalize the data structures used in
 > propagate' :: Floating a => PropagatedLayer a -> Layer' a -> PropagatedLayer a
 > propagate' layerJ layerK = PropagatedLayer
 >         {
->           propLayerIn'         = layerJOut,
->           propLayerOut'        = map f a,
->           propLayerActFun'Val' = map (diff f) a,
->           propLayerWeights'    = weights,
->           propLayerActFun'     = layerFunction' layerK
+>           propLayerIn         = layerJOut,
+>           propLayerOut        = map f a,
+>           propLayerActFun'Val = map (diff f) a,
+>           propLayerWeights    = weights,
+>           propLayerActFun     = layerFunction' layerK
 >         }
->   where layerJOut = propLayerOut' layerJ
+>   where layerJOut = propLayerOut layerJ
 >         weights   = layerWeights' layerK
 >         a = weights `matMult` layerJOut
 >         f :: Floating a => a -> a
@@ -308,7 +317,7 @@ Let us borrow and generalize the data structures used in
 >                         show (length $ head w2)
 
 > evaluateBPN' :: (Floating a, Ord a) => BackpropNet' a -> [a] -> [a]
-> evaluateBPN' net input = propLayerOut' $ last calcs
+> evaluateBPN' net input = propLayerOut $ last calcs
 >   where calcs = propagateNet' (1:input) net
 >
 > costFn :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet' a -> a
@@ -412,7 +421,7 @@ FIXME: Perhaps we should use lenses.
 
 
 > evaluateBPN :: BackpropNet -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList $ propLayerOut $ last calcs
+> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
 >   where calcs = propagateNet x net
 >         x = listToColumnVector (1:input)
 
@@ -739,15 +748,6 @@ the activation function.
 >     layerFunction :: ActivationFunction
 >   }
 
-The activation function itself is a function which takes any type in
-the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
-
-> newtype ActivationFunction =
->   ActivationFunction
->   {
->     activationFunction :: Floating a => a -> a
->   }
-
 Our neural network consists of a list of layers together with a learning rate.
 
 > data BackpropNet = BackpropNet
@@ -788,14 +788,14 @@ We keep a record of calculations at each layer in the neural network.
 >     = PropagatedLayerOld
 >         {
 >           propLayerInOld         :: ColumnVector Double,
->           propLayerOut        :: ColumnVector Double,
->           propLayerActFun'Val :: ColumnVector Double,
->           propLayerWeights    :: Matrix Double,
->           propLayerActFun     :: ActivationFunction
+>           propLayerOutOld        :: ColumnVector Double,
+>           propLayerActFun'ValOld :: ColumnVector Double,
+>           propLayerWeightsOld    :: Matrix Double,
+>           propLayerActFunOld     :: ActivationFunction
 >         }
 >     | PropagatedSensorLayer
 >         {
->           propLayerOut :: ColumnVector Double
+>           propLayerOutOld :: ColumnVector Double
 >         }
 
 We take a record of the calculations at one layer, a layer and produce
@@ -805,12 +805,12 @@ the record of the calculations at the next layer.
 > propagate layerJ layerK = PropagatedLayerOld
 >         {
 >           propLayerInOld         = layerJOut,
->           propLayerOut        = mapMatrix f a,
->           propLayerActFun'Val = mapMatrix (diff f) a,
->           propLayerWeights    = weights,
->           propLayerActFun     = layerFunction layerK
+>           propLayerOutOld        = mapMatrix f a,
+>           propLayerActFun'ValOld = mapMatrix (diff f) a,
+>           propLayerWeightsOld    = weights,
+>           propLayerActFunOld     = layerFunction layerK
 >         }
->   where layerJOut = propLayerOut layerJ
+>   where layerJOut = propLayerOutOld layerJ
 >         weights   = layerWeights layerK
 >         a         = weights <> layerJOut
 >         f :: Floating a => a -> a
@@ -884,14 +884,14 @@ Propagate the inputs backward through this layer to produce an output.
 >       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
 >       backpropActFun'Val = f'aJ,
 >       backpropIn         = bpIn,
->       backpropOut        = propLayerOut layerJ,
->       backpropWeights    = propLayerWeights layerJ,
->       backPropActFun     = propLayerActFun layerJ
+>       backpropOut        = propLayerOutOld layerJ,
+>       backpropWeights    = propLayerWeightsOld layerJ,
+>       backPropActFun     = propLayerActFunOld layerJ
 >     }
 >     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
 >           dazzleK = backpropOutGrad layerK
 >           f'aK    = backpropActFun'Val layerK
->           f'aJ    = propLayerActFun'Val layerJ
+>           f'aJ    = propLayerActFun'ValOld layerJ
 >           bpIn    = propLayerInOld layerJ
 
 > errorGrad :: ColumnVector Double ->
@@ -909,12 +909,12 @@ Propagate the inputs backward through this layer to produce an output.
 >       backpropWeightGrad = errorGrad dazzle f'a (propLayerInOld l),
 >       backpropActFun'Val = f'a,
 >       backpropIn         = propLayerInOld l,
->       backpropOut        = propLayerOut l,
->       backpropWeights    = propLayerWeights l,
->       backPropActFun     = propLayerActFun l
+>       backpropOut        = propLayerOutOld l,
+>       backpropWeights    = propLayerWeightsOld l,
+>       backPropActFun     = propLayerActFunOld l
 >     }
->     where dazzle =  propLayerOut l - t
->           f'a    = propLayerActFun'Val l
+>     where dazzle =  propLayerOutOld l - t
+>           f'a    = propLayerActFun'ValOld l
 
 Move backward (from right to left) through the neural network
 i.e. this is backpropagation itself.
