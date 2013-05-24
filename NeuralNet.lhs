@@ -214,6 +214,9 @@ Neural Network Representation
 
 Let us borrow, generalize and prune the data structures used in 
 ["A Functional Approach to Neural Networks"][MonadReader].
+Some of the fields in the borrowed data structures are probably no
+longer necessary given that we are going to use automated
+differentiation rather than backpropagation. Caveat lector!
 
 The activation function itself is a function which takes any type in
 the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
@@ -224,18 +227,7 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >     activationFunction :: Floating a => a -> a
 >   }
 
-> data PropagatedLayer a
->     = PropagatedLayer
->         {
->           propLayerIn         :: [a],
->           propLayerOut        :: [a],
->           propLayerWeights    :: [[a]],
->           propLayerActFun     :: ActivationFunction
->         }
->     | PropagatedSensorLayer
->         {
->           propLayerOut :: [a]
->         } deriving (Functor, Foldable, Traversable)
+A neural network is a collection of layers.
 
 > data Layer a =
 >   Layer
@@ -250,8 +242,53 @@ the _Floating_ class to the same type in the _Floating_ class e.g. _Double_.
 >       learningRate :: Double
 >     } deriving (Functor, Foldable, Traversable)
 
+We need some helper functions to build our neural network and to
+extract information from it.
+
+> buildBackpropNet' ::
+>   Double ->
+>   [[[a]]] ->
+>   ActivationFunction ->
+>   BackpropNet a
+> buildBackpropNet' learningRate ws f =
+>   BackpropNet {
+>       layers       = map buildLayer checkedWeights
+>     , learningRate = learningRate
+>     }
+>   where checkedWeights = scanl1 checkDimensions ws
+>         buildLayer w   = Layer { layerWeights  = w
+>                                 , layerFunction = f
+>                                 }
+>         checkDimensions :: [[a]] -> [[a]] -> [[a]]
+>         checkDimensions w1 w2 =
+>           if length w1 == length (head w2)
+>           then w2
+>           else error $ "Inconsistent dimensions in weight matrix\n" ++
+>                         show (length w1)        ++ "\n" ++
+>                         show (length w2)        ++ "\n" ++
+>                         show (length $ head w1) ++ "\n" ++
+>                         show (length $ head w2)
+
 > extractWeights :: BackpropNet a -> [[[a]]]
 > extractWeights x = map layerWeights $ layers x
+
+We store information about updating of output values in each layer in
+the neural network as we move forward through the network (aka forward
+propagation).
+
+> data PropagatedLayer a
+>     = PropagatedLayer
+>         {
+>           propLayerIn         :: [a],
+>           propLayerOut        :: [a],
+>           propLayerWeights    :: [[a]],
+>           propLayerActFun     :: ActivationFunction
+>         }
+>     | PropagatedSensorLayer
+>         {
+>           propLayerOut :: [a]
+>         } deriving (Functor, Foldable, Traversable)
+
 
 Sadly we have to use an inefficient calculation to multiply matrices; see this [email][ADMatrixMult] for further details.
 
@@ -293,30 +330,6 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
 >           if (minimum input >= 0) && (maximum input <= 1)
 >           then input
 >           else error "Input bits outside of range [0,1]"
-
-> buildBackpropNet' ::
->   Double ->
->   [[[a]]] ->
->   ActivationFunction ->
->   BackpropNet a
-> buildBackpropNet' learningRate ws f =
->   BackpropNet {
->       layers       = map buildLayer checkedWeights
->     , learningRate = learningRate
->     }
->   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = Layer { layerWeights  = w
->                                 , layerFunction = f
->                                 }
->         checkDimensions :: [[a]] -> [[a]] -> [[a]]
->         checkDimensions w1 w2 =
->           if length w1 == length (head w2)
->           then w2
->           else error $ "Inconsistent dimensions in weight matrix\n" ++
->                         show (length w1)        ++ "\n" ++
->                         show (length w2)        ++ "\n" ++
->                         show (length $ head w1) ++ "\n" ++
->                         show (length $ head w2)
 
 > evaluateBPN' :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
 > evaluateBPN' net input = propLayerOut $ last calcs
