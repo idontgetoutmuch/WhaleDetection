@@ -6,18 +6,33 @@ module NnClassifierDia (
 
 import Diagrams.Prelude
 
-nn = mconcat layer1s <>
+maxLayer = 5
+intraLayerGap = 1.0 / (fromIntegral maxLayer)
+
+nodesInt :: Int -> [Int]
+nodesInt 0 = [0]
+nodesInt n = [negate n] ++ nodesInt (n - 1) ++ [n]
+
+nodes n intraLayerGap = map (+0.5) $ map (*intraLayerGap) $ map fromIntegral $ nodesInt n
+
+nn = mconcat (layer1s 3) <>
+     mconcat (mconcat $ map (arrow1s 3) $ nodes 1 intraLayerGap) <>
      mconcat layer2s <>
-     mconcat arrow1s <>
-     mconcat arrow2s <>
+     mconcat (mconcat $ map arrow2s $ nodes 2 intraLayerGap) <>
      mconcat layer3s <>
      background
        where
-         layer1s = zipWith (myCircle' 0.1) [0.1,0.3..0.9] ["x1", "x2", "x3", "x4", "x5"]
-         arrow1s = map (\x -> drawV 0.1 x (0.8 *^ getDirection (0.1, x) (0.5, 0.5))) [0.1,0.3..0.9]
-         layer2s = zipWith (myCircle'' 0.5) [0.5] ["a"]
-         arrow2s = [drawV 0.5 0.5 (0.8 *^ getDirection (0.5, 0.5) (0.8, 0.5))]
-         layer3s = [text "y = f(a)" # scale 0.05 # translate (r2 (0.9, 0.5))]
+         layer1s n = zipWith (myCircle' xOff) ns ms
+           where
+             ns = nodes n (1 / (2 * (fromIntegral n) + 1))
+             ms = zipWith (\x y -> 'x':(show x)) [1..] ns
+             xOff = head ns
+         arrow1s n y = map (\x -> drawV 0.1 x (0.8 *^ getDirection (0.1, x) (0.5, y))) ns
+           where
+             ns = nodes n (1 / (2 * (fromIntegral n) + 1))
+         arrow2s y = map (\x -> drawV 0.5 x (0.8 *^ getDirection (0.5, x) (0.8, y))) (nodes 1 intraLayerGap)
+         layer2s = zipWith (myCircle'' 0.5) (nodes 1 intraLayerGap) ["z1,1", "z1,2", "z1,3"]
+         layer3s = zipWith (myCircle'' 0.85) (nodes 2 intraLayerGap) ["z2,1", "z2,2", "z2,3", "z2,4", "z2,5"]
 
 getDirection (x1, y1) (x2, y2) =
   (x2 - x1) & (y2 - y1)
