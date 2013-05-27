@@ -27,9 +27,10 @@ nn = mconcat (layer1s 3) <>
              ns = nodes n (1 / (2 * (fromIntegral n) + 1))
              ms = zipWith (\x y -> 'x':(show x)) [1..] ns
              xOff = head ns
-         arrow1s n y = map (\x -> drawV 0.1 x (0.8 *^ getDirection (0.1, x) (0.5, y))) ns
+         arrow1s n y = map (\x -> drawV (cOff / 2) x (0.8 *^ getDirection (0.1, x) (0.5, y))) ns
            where
-             ns = nodes n (1 / (2 * (fromIntegral n) + 1))
+             cOff = 1 / (2 * (fromIntegral n) + 1)
+             ns   = nodes n cOff
          arrow2s y = map (\x -> drawV 0.5 x (0.8 *^ getDirection (0.5, x) (0.8, y))) (nodes 1 intraLayerGap)
          layer2s = zipWith (myCircle'' 0.5) (nodes 1 intraLayerGap) ["z1,1", "z1,2", "z1,3"]
          layer3s = zipWith (myCircle'' 0.85) (nodes 2 intraLayerGap) ["z2,1", "z2,2", "z2,3", "z2,4", "z2,5"]
@@ -45,7 +46,7 @@ drawV x y v = (arrowHead <> shaft) # fc black # translate (r2 (x, y))
               # translate v
 
 myCircle' x y l =
-  (t # translate (r2 (x - 0.1, y + 0.1))) <>
+  (t # translate (r2 (x - 0.1, y + 0.05))) <>
   (circle 0.05 # fc blue # translate (r2 (x, y)) # opacity 0.5)
   where
     t = text l # scale 0.05
