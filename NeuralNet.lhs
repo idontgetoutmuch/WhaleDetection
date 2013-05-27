@@ -31,54 +31,6 @@ automatic differentiation".
   [AutomaticDifferentiation]: http://en.wikipedia.org/wiki/Automatic_differentiation
   [Domke2009a]: http://justindomke.wordpress.com/2009/02/17/automatic-differentiation-the-most-criminally-underused-tool-in-the-potential-machine-learning-toolbox/
 
-Haskell Foreword
-----------------
-
-Some pragmas and imports required for the example code.
-
-> {-# LANGUAGE RankNTypes #-}
-> {-# LANGUAGE DeriveFunctor #-}
-> {-# LANGUAGE DeriveFoldable #-}
-> {-# LANGUAGE DeriveTraversable #-}
-> {-# LANGUAGE ScopedTypeVariables #-}
-
-> {-# OPTIONS_GHC -Wall                     #-}
-> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
-> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
-> {-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
-
-> {-# OPTIONS_GHC -fno-warn-missing-methods #-}
-
-> {-# LANGUAGE TupleSections #-}
-
-> module Main (main) where
-
-> import Numeric.LinearAlgebra
-> import Numeric.AD
-> import Numeric.AD.Types
-> import Data.Traversable (Traversable)
-> import Data.Foldable (Foldable)
-> import Data.List
-> import Data.List.Split
-> import System.Random
-> import qualified Data.Vector as V
-
-> import Control.Monad
-> import Control.Monad.State
-
-> import Data.Random ()
-> import Data.Random.Distribution.Beta
-> import Data.RVar
-
-For use in the appendix.
-
-> import Data.Word
-> import qualified Data.ByteString.Lazy as BL
-> import Data.Binary.Get
->
-> import Data.Maybe
-> import Text.Printf
-
 Neural Networks
 ---------------
 
@@ -151,6 +103,55 @@ generalisation of (multivariate) linear logistic regression.
 import NnClassifierDia
 dia = nn
 ```
+
+Haskell Foreword
+----------------
+
+Some pragmas and imports required for the example code.
+
+> {-# LANGUAGE RankNTypes #-}
+> {-# LANGUAGE DeriveFunctor #-}
+> {-# LANGUAGE DeriveFoldable #-}
+> {-# LANGUAGE DeriveTraversable #-}
+> {-# LANGUAGE ScopedTypeVariables #-}
+
+> {-# OPTIONS_GHC -Wall                     #-}
+> {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+> {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+> {-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
+
+> {-# OPTIONS_GHC -fno-warn-missing-methods #-}
+
+> {-# LANGUAGE TupleSections #-}
+
+> module Main (main) where
+
+> import Numeric.LinearAlgebra
+> import Numeric.AD
+> import Numeric.AD.Types
+> import Data.Traversable (Traversable)
+> import Data.Foldable (Foldable)
+> import Data.List
+> import Data.List.Split
+> import System.Random
+> import qualified Data.Vector as V
+
+> import Control.Monad
+> import Control.Monad.State
+
+> import Data.Random ()
+> import Data.Random.Distribution.Beta
+> import Data.RVar
+
+For use in the appendix.
+
+> import Data.Word
+> import qualified Data.ByteString.Lazy as BL
+> import Data.Binary.Get
+>
+> import Data.Maybe
+> import Text.Printf
+
 
 Logistic Regression Redux
 -------------------------
