@@ -245,12 +245,12 @@ A neural network is a collection of layers.
 We need some helper functions to build our neural network and to
 extract information from it.
 
-> buildBackpropNet' ::
+> buildBackpropNet ::
 >   Double ->
 >   [[[a]]] ->
 >   ActivationFunction ->
 >   BackpropNet a
-> buildBackpropNet' learningRate ws f =
+> buildBackpropNet learningRate ws f =
 >   BackpropNet {
 >       layers       = map buildLayer checkedWeights
 >     , learningRate = learningRate
@@ -272,9 +272,29 @@ extract information from it.
 > extractWeights :: BackpropNet a -> [[[a]]]
 > extractWeights x = map layerWeights $ layers x
 
+In order to undertake gradient descent on the data structure in which
+we store a neural network, _BackpropNet_, it will be convenient to be
+able to add such structures together point-wise.
+
+> instance Num a => Num (Layer a) where
+>   (+) = addLayer
+>
+> addLayer :: Num a => Layer a -> Layer a -> Layer a
+> addLayer x y = Layer { layerWeights  = zipWith (zipWith (+)) (layerWeights x) (layerWeights y)
+>                       , layerFunction = layerFunction x
+>                       }
+
+> instance Num a => Num (BackpropNet a) where
+>   (+) = addBPN
+
+> addBPN :: Num a => BackpropNet a -> BackpropNet a -> BackpropNet a
+> addBPN x y = BackpropNet { layers = zipWith (+) (layers x) (layers y)
+>                           , learningRate = learningRate x
+>                           }
+
 We store information about updating of output values in each layer in
 the neural network as we move forward through the network (aka forward
-propagation).
+propagation). 
 
 > data PropagatedLayer a
 >     = PropagatedLayer
@@ -297,23 +317,11 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
 > matMult :: Num a => [[a]] -> [a] -> [a]
 > matMult m v = map (\r -> sum $ zipWith (*) r v) m
 
-> propagate' :: Floating a => PropagatedLayer a -> Layer a -> PropagatedLayer a
-> propagate' layerJ layerK = PropagatedLayer
->         {
->           propLayerIn         = layerJOut,
->           propLayerOut        = map f a,
->           propLayerWeights    = weights,
->           propLayerActFun     = layerFunction layerK
->         }
->   where layerJOut = propLayerOut layerJ
->         weights   = layerWeights layerK
->         a = weights `matMult` layerJOut
->         f :: Floating a => a -> a
->         f = activationFunction $ layerFunction layerK
+Now we can forward propagate.
 
-> propagateNet' :: (Floating a, Ord a) => [a] -> BackpropNet a -> [PropagatedLayer a]
-> propagateNet' input net = tail calcs
->   where calcs = scanl propagate' layer0 (layers net)
+> propagateNet :: (Floating a, Ord a) => [a] -> BackpropNet a -> [PropagatedLayer a]
+> propagateNet input net = tail calcs
+>   where calcs = scanl propagate layer0 (layers net)
 >         layer0 = PropagatedSensorLayer $ validateInput net input
 >
 >         validateInput net = validateInputValues . validateInputDimensions net
@@ -331,33 +339,78 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
 >           then input
 >           else error "Input bits outside of range [0,1]"
 
-> evaluateBPN' :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
-> evaluateBPN' net input = propLayerOut $ last calcs
->   where calcs = propagateNet' (1:input) net
->
-> costFn :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
-> costFn expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
->   where
->     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
->     predicted = evaluateBPN' net input
->     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
+> propagate :: Floating a => PropagatedLayer a -> Layer a -> PropagatedLayer a
+> propagate layerJ layerK = PropagatedLayer
+>         {
+>           propLayerIn         = layerJOut,
+>           propLayerOut        = map f a,
+>           propLayerWeights    = weights,
+>           propLayerActFun     = layerFunction layerK
+>         }
+>   where layerJOut = propLayerOut layerJ
+>         weights   = layerWeights layerK
+>         a = weights `matMult` layerJOut
+>         f :: Floating a => a -> a
+>         f = activationFunction $ layerFunction layerK
 
-> costFn' :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
-> costFn' expectedDigit input net = -- trace ("\nWeights:" ++ show (extractWeights net) ++
->                                   --        "\nb:" ++ show b ++
->                                   --        "\nexpected:" ++ show (targets!!expectedDigit) ++
->                                   --        "\npredicted:" ++ show predicted ++
->                                   --        "\ninput:" ++ show input) $
->                                   0.5 * sum (map (^2) diffs)
+Note that we add a 1 to the inputs to give the bias.
+
+FIXME: This seems just to be in the input layer. What about biases for
+the hidden layers?
+
+> evalNeuralNet :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
+> evalNeuralNet net input = propLayerOut $ last calcs
+>   where calcs = propagateNet (1:input) net
+
+We define a cost function.
+
+FIXME: We could use a log-likelihood function as in the coursera exercise.
+
+> costFn :: (Floating a, Ord a, Show a) =>
+>           Int ->
+>           [a] ->
+>           BackpropNet a ->
+>           a
+> costFn expectedDigit input net = 0.5 * sum (map (^2) diffs)
 >   where
->     predicted = evaluateBPN' net input
+>     predicted = evalNeuralNet net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
-> totalCostNN :: (Floating a, Ord a, Show a) => V.Vector Int -> V.Vector [a] -> BackpropNet a -> a
+And the gradient of the cost function. Note that both the cost
+function and its gradient are parameterised over the inputs and the
+output label.
+
+> delCostFn :: (Ord a, Floating a, Show a) =>
+>                          Int ->
+>                          [a] ->
+>                          BackpropNet a ->
+>                          BackpropNet a
+> delCostFn y x = grad f
+>   where
+>     f theta = costFn y (map auto x) theta
+
+Now we can implement (stochastic) gradient descent.
+
+> stepOnce :: Double ->
+>             Int ->
+>             [Double] ->
+>             BackpropNet Double ->
+>             BackpropNet Double
+> stepOnce gamma y x net =
+>   net + fmap (* (negate gamma)) (delCostFn y x net)
+
+If instead we would rather perform gradient descent over the whole
+training set (rather than stochastically) then we can do so:
+
+> totalCostNN :: (Floating a, Ord a, Show a) =>
+>                V.Vector Int ->
+>                V.Vector [a] ->
+>                BackpropNet a ->
+>                a
 > totalCostNN expectedDigits inputs net = (a + delta * b) / l
 >   where
 >     l = fromIntegral $ V.length expectedDigits
->     a = V.sum $ V.zipWith (\expectedDigit input -> costFn' expectedDigit input net)
+>     a = V.sum $ V.zipWith (\expectedDigit input -> costFn expectedDigit input net)
 >                           expectedDigits inputs
 >     b = (/2) $ sum $ map (^2) $ concat $ concat $ extractWeights net
 
@@ -370,40 +423,6 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
 >   where
 >     f net = totalCostNN expectedDigits (V.map (map auto) inputs) net
 
-> delCostFn :: (Ord a, Floating a, Show a) =>
->                          Int ->
->                          [a] ->
->                          BackpropNet a ->
->                          BackpropNet a
-> delCostFn y x = grad f
->   where
->     f theta = costFn y (map auto x) theta
-
-> delCostFn' :: (Ord a, Floating a, Show a) =>
->                          Int ->
->                          [a] ->
->                          BackpropNet a ->
->                          BackpropNet a
-> delCostFn' y x = grad f
->   where
->     f theta = costFn' y (map auto x) theta
-
-> stepOnce :: Double ->
->             Int ->
->             [Double] ->
->             BackpropNet Double ->
->             BackpropNet Double
-> stepOnce gamma y x theta =
->   theta + fmap (* (negate gamma)) (delCostFn y x theta)
-
-> stepOnce' :: Double ->
->             Int ->
->             [Double] ->
->             BackpropNet Double ->
->             BackpropNet Double
-> stepOnce' gamma y x theta =
->   theta + fmap (* (negate gamma)) (delCostFn' y x theta)
-
 > stepOnceTotal :: Double ->
 >                  V.Vector Int ->
 >                  V.Vector [Double] ->
@@ -412,32 +431,9 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
 > stepOnceTotal gamma y x net =
 >   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
 
-FIXME: See the FIXMEs below.
-
-> instance Num a => Num (BackpropNet a) where
->   (+) = addBPN
-
-> addBPN :: Num a => BackpropNet a -> BackpropNet a -> BackpropNet a
-> addBPN x y = BackpropNet { layers = zipWith (+) (layers x) (layers y)
->                           , learningRate = learningRate x
->                           }
-
-FIXME: We should throw an error if we try to add layers with non-matching functions.
-
-FIXME: Perhaps we should use lenses.
-
-> instance Num a => Num (Layer a) where
->   (+) = addLayer
->
-> addLayer :: Num a => Layer a -> Layer a -> Layer a
-> addLayer x y = Layer { layerWeights  = zipWith (zipWith (+)) (layerWeights x) (layerWeights y)
->                       , layerFunction = layerFunction x
->                       }
-
-
 > evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
 > evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
->   where calcs = propagateNet x net
+>   where calcs = propagateNetOld x net
 >         x = listToColumnVector (1:input)
 
 > evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
@@ -451,6 +447,32 @@ FIXME: Perhaps we should use lenses.
 > evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
 > evalAllPatterns = map . evalOnePattern
 
+Testing / Debugging
+-------------------
+
+> costFnFudge :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
+> costFnFudge expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
+>   where
+>     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
+>     predicted = evalNeuralNet net input
+>     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
+
+> delCostFnFudge :: (Ord a, Floating a, Show a) =>
+>                          Int ->
+>                          [a] ->
+>                          BackpropNet a ->
+>                          BackpropNet a
+> delCostFnFudge y x = grad f
+>   where
+>     f theta = costFnFudge y (map auto x) theta
+
+> stepOnceFudge :: Double ->
+>             Int ->
+>             [Double] ->
+>             BackpropNet Double ->
+>             BackpropNet Double
+> stepOnceFudge gamma y x theta =
+>   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
 
 Appendix
 --------
@@ -543,9 +565,9 @@ We can plot the populations we wish to distinguish by sampling.
 >       w1' = randomWeightMatrix' (nRows * nCols + 1) nNodes 7
 >       w2' :: (Random a, Floating a) => [[a]]
 >       w2' = randomWeightMatrix' nNodes nDigits 42
->       initialNet  = buildBackpropNet  lRate [w1, w2] tanhAS
->       testNet = buildBackpropNet' lRate [[[0.1, 0.1]]] (ActivationFunction logit)
->       testNet' = buildBackpropNet' lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+>       initialNet  = buildBackpropNetOld  lRate [w1, w2] tanhAS
+>       testNet = buildBackpropNet lRate [[[0.1, 0.1]]] (ActivationFunction logit)
+>       testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
 >
 >   trainingData <- fmap (take 8000) readTrainingData
 >
@@ -574,15 +596,15 @@ We can plot the populations we wish to distinguish by sampling.
 >   error "Finished"
 
 
->   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet
->   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn' u [v] testNet'
->   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet
->   printf "Step once %s\n" $ show $ extractWeights $ stepOnce' lRate u [v] testNet'
+>   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFnFudge u [v] testNet
+>   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet'
+>   printf "Step once %s\n" $ show $ extractWeights $ stepOnceFudge lRate u [v] testNet
+>   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet'
 >
->   let foo' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet
+>   let foo' = V.scanl' (\s (u, v) -> stepOnceFudge lRate u [v] s) testNet
 >                       (V.zip (V.map fromIntegral us) vs)
 >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo'
->   let foo'' = V.scanl' (\s (u, v) -> stepOnce' lRate u [v] s) testNet'
+>   let foo'' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet'
 >                        (V.zip (V.map fromIntegral us) vs)
 >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo''
 
@@ -777,12 +799,12 @@ compatible.  It takes a learning rate, a list of matrices of weights
 for each layer, a single common activation function and produce a
 neural network.
 
-> buildBackpropNet ::
+> buildBackpropNetOld ::
 >   Double ->
 >   [Matrix Double] ->
 >   ActivationFunction ->
 >   BackpropNetOld
-> buildBackpropNet learningRate ws f =
+> buildBackpropNetOld learningRate ws f =
 >   BackpropNetOld {
 >       layersOld       = map buildLayer checkedWeights
 >     , learningRateOld = learningRate
@@ -816,8 +838,8 @@ We keep a record of calculations at each layer in the neural network.
 We take a record of the calculations at one layer, a layer and produce
 the record of the calculations at the next layer.
 
-> propagate :: PropagatedLayerOld -> LayerOld -> PropagatedLayerOld
-> propagate layerJ layerK = PropagatedLayerOld
+> propagateOld :: PropagatedLayerOld -> LayerOld -> PropagatedLayerOld
+> propagateOld layerJ layerK = PropagatedLayerOld
 >         {
 >           propLayerInOld         = layerJOut,
 >           propLayerOutOld        = mapMatrix f a,
@@ -835,9 +857,9 @@ With this we can take an input to the neural network, the neural
 network itself and produce a collection of records of the calculations
 at each layer.
 
-> propagateNet :: ColumnVector Double -> BackpropNetOld -> [PropagatedLayerOld]
-> propagateNet input net = tail calcs
->   where calcs = scanl propagate layer0 (layersOld net)
+> propagateNetOld :: ColumnVector Double -> BackpropNetOld -> [PropagatedLayerOld]
+> propagateNetOld input net = tail calcs
+>   where calcs = scanl propagateOld layer0 (layersOld net)
 >         layer0 = PropagatedSensorLayerOld $ validateInput net input
 >
 >         validateInput :: BackpropNetOld -> ColumnVector Double -> ColumnVector Double
@@ -971,7 +993,7 @@ using each pair to move a step in the direction of steepest descent.
 >   where newLayers            = map (update $ learningRateOld net) backpropagatedLayers
 >         rate                 = learningRateOld net
 >         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
->         propagatedLayers     = propagateNet x net
+>         propagatedLayers     = propagateNetOld x net
 >         x                    = listToColumnVector (1:input)
 
 > trainOnePattern :: ([Double], Int) -> BackpropNetOld -> BackpropNetOld
