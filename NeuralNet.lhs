@@ -34,6 +34,9 @@ automatic differentiation".
 Neural Networks
 ---------------
 
+We can view neural nets or at least a multi layer perceptron as a
+generalisation of (multivariate) linear logistic regression.
+
 We follow [@rojas1996neural;@Bishop:2006:PRM:1162264]. We are given a training set:
 
 $$
@@ -86,6 +89,15 @@ a_j^{(L)}       &= \sum_{i=1}^{K_{L-1}} w^{(L-1)}_{ij}x_i + w_{0j}^{(L-1)} \\
 \hat{y}_j       &= f(a_j^{(L)})
 \end{align*}
 
+We show an example neural in the diagram below.
+
+```{.dia width='500'}
+import NnClassifierDia
+dia = nn
+```
+
+The input layer has 7 nodes. There are 2 hidden layers, the first has
+3 nodes and the second has 5. The output layer has 3 nodes.
 
 We are also
 given a cost function:
@@ -94,15 +106,38 @@ $$
 E(\vec{x}) = \frac{1}{2}\sum_1^{N_L}(\hat{y}^L_i - y^L_i)^2
 $$
 
-We can view neural nets or at least a multi layer perceptron as a
-generalisation of (multivariate) linear logistic regression.
+As with logistic regression, our goal is to find weights for the
+neural network which minimises this cost function. The method that is
+used in backpropagation to is to initialise the weights to some small
+non-zero amount and then use the method of steepest descent (aka
+gradient descent). The idea is that if $f$ is a function of several
+variables then to find its minimum value, one ought to take a small
+step in the direction in which it is decreasing most quickly and
+repeat until no step in any direction results in a decrease. The
+analogy is that if one is walking in the mountains then the quickest
+way down is to walk in the direction which goes down most steeply. Of
+course one get stuck at a local minimum rather than the global minimum
+but from a machine learning point of view this may be acceptable;
+alternatively one may start at random points in the search space and
+check they all give the same minimum.
 
-  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
+We therefore need calculate the gradient of the loss function with
+respect to the weights (since we need to minimise the cost
+function). In other words we need to find:
 
-```{.dia width='400'}
-import NnClassifierDia
-dia = nn
-```
+$$
+\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
+$$
+
+Once we have this we can take our random starting position and move
+down the steepest gradient:
+
+$$
+w'_i = w_i - \gamma\frac{\partial E}{\partial w_i}
+$$
+
+where $\gamma$ is the step length known in machine learning parlance
+as the learning rate.
 
 Haskell Foreword
 ----------------
@@ -194,7 +229,9 @@ We determine the gradient of the regularized cost function.
 >   where
 >     f theta = totalCost theta (V.map auto y) (V.map (V.map auto) x)
 
-And finally we can apply gradient descent.
+And finally we can apply [gradient descent][GradientDescent].
+
+  [GradientDescent]: http://en.wikipedia.org/wiki/Gradient_descent
 
 > gamma :: Double
 > gamma = 0.4
@@ -213,7 +250,7 @@ And finally we can apply gradient descent.
 Neural Network Representation
 -----------------------------
 
-Let us borrow, generalize and prune the data structures used in 
+Let us borrow, generalize and prune the data structures used in
 ["A Functional Approach to Neural Networks"][MonadReader].
 Some of the fields in the borrowed data structures are probably no
 longer necessary given that we are going to use automated
@@ -295,7 +332,7 @@ able to add such structures together point-wise.
 
 We store information about updating of output values in each layer in
 the neural network as we move forward through the network (aka forward
-propagation). 
+propagation).
 
 > data PropagatedLayer a
 >     = PropagatedLayer
@@ -740,38 +777,6 @@ FIXME: This looks a bit yuk
 Backpropagation
 ---------------
 
-As with logistic regression, our goal is to find weights for the
-neural network which minimises this cost function. The method that is
-used in backpropagation to is to initialise the weights to some small
-non-zero amount and then use the method of steepest descent (aka
-gradient descent). The idea is that if $f$ is a function of several
-variables then to find its minimum value, one ought to take a small
-step in the direction in which it is decreasing most quickly and
-repeat until no step in any direction results in a decrease. The
-analogy is that if one is walking in the mountains then the quickest
-way down is to walk in the direction which goes down most steeply. Of
-course one get stuck at a local minimum rather than the global minimum
-but from a machine learning point of view this may be acceptable;
-alternatively one may start at random points in the search space and
-check they all give the same minimum.
-
-We therefore need calculate the gradient of the loss function with
-respect to the weights (since we need to minimise the cost
-function). In other words we need to find:
-
-$$
-\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
-$$
-
-Once we have this we can take our random starting position and move
-down the steepest gradient:
-
-$$
-w'_i = w_i - \gamma\frac{\partial E}{\partial w_i}
-$$
-
-where $\gamma$ is the step length known in machine learning parlance
-as the learning rate.
 
 
 The implementation below is a modified version of [MonadLayer].
