@@ -162,9 +162,9 @@ Some pragmas and imports required for the example code.
 
 > module NeuralNet where
 
-> import Numeric.LinearAlgebra
 > import Numeric.AD
 > import Numeric.AD.Types
+
 > import Data.Traversable (Traversable)
 > import Data.Foldable (Foldable)
 > import Data.List
@@ -177,15 +177,13 @@ Some pragmas and imports required for the example code.
 
 > import Data.Random ()
 > import Data.Random.Distribution.Beta
+> import Data.Random.Distribution.Uniform
 > import Data.RVar
 
-For use in the appendix.
-
 > import Data.Word
+> import Data.Bits
 > import qualified Data.ByteString.Lazy as BL
 > import Data.Binary.Get
->
-> import Data.Maybe
 > import Text.Printf
 
 Logistic Regression Redux
@@ -433,12 +431,14 @@ We define a cost function.
 >     predicted = evalNeuralNet net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
+FIXME: This is screwed. Sometimes we want 2 digits and sometimes we want 10.
+
 > targets :: Floating a => [[a]]
-> targets = map row [0 .. 2 {- nDigits -} - 1]
+> targets = map row [0 .. 10 {- nDigits -} - 1]
 >   where
 >     row m = concat [x, 1.0 : y]
 >       where
->         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
+>         (x, y) = splitAt m (take (10 {- nDigits -} - 1) $ repeat 0.0)
 
 And the gradient of the cost function. Note that both the cost
 function and its gradient are parameterised over the inputs and the
@@ -546,7 +546,7 @@ We can plot the populations we wish to distinguish by sampling.
 > test1 :: IO ()
 > test1 = do
 >
->   let testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+>   let testNet = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
 
 >   let vals :: V.Vector (Double, V.Vector Double)
 >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
@@ -558,7 +558,7 @@ We can plot the populations we wish to distinguish by sampling.
 >
 >   let us = V.map (round . fst) createSample
 >   let vs = V.map snd createSample
->   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
+>   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet
 >       phi = extractWeights $ head $ drop 1000 fs
 >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
 >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
@@ -591,67 +591,86 @@ represent an image as a record; the pixels are represented using an
 >     , iPixels  :: [Word8]
 >     } deriving (Eq, Show)
 
--- > nRows, nCols, nNodes, nDigits :: Int
--- > nRows = 28
--- > nCols = 28
--- > nNodes = 20
--- > nDigits = 10
--- >
--- > smallRandoms :: (Random a, Floating a) => Int -> [a]
--- > smallRandoms seed = map (/100) (randoms (mkStdGen seed))
--- >
--- > randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
--- > randomWeightMatrix numInputs numOutputs seed = x
--- >   where
--- >     x = (numOutputs >< numInputs) weights
--- >     weights = take (numOutputs * numInputs) (smallRandoms seed)
--- >
--- > randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
--- > randomWeightMatrix' numInputs numOutputs seed = y
--- >   where
--- >     -- y :: (Random a, Floating a) => [[a]]
--- >     y = chunksOf numInputs weights
--- >     -- weights :: (Random a, Floating a) => [a]
--- >     weights = take (numOutputs * numInputs) (smallRandoms seed)
+First we need some utilities to decode the data.
 
+> deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
+> deserialiseHeader = do
+>   magicNumber <- getWord32be
+>   imageCount <- getWord32be
+>   r <- getWord32be
+>   c <- getWord32be
+>   packedData <- getRemainingLazyByteString
+>   let len = fromIntegral (r * c)
+>   let unpackedData = chunksOf len (BL.unpack packedData)
+>   return (magicNumber, imageCount, r, c, unpackedData)
 
-In order to run the trained neural network then we need some training
-data and test data.
+> readImages :: FilePath -> IO (Int, Int, [Image])
+> readImages filename = do
+>   content <- BL.readFile filename
+>   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
+>   return (fromIntegral r, fromIntegral c,
+>           (map (Image (fromIntegral r) (fromIntegral c)) unpackedData))
+
+> deserialiseLabels :: Get (Word32, Word32, [Word8])
+> deserialiseLabels = do
+>   magicNumber <- getWord32be
+>   count <- getWord32be
+>   labelData <- getRemainingLazyByteString
+>   let labels = BL.unpack labelData
+>   return (magicNumber, count, labels)
+
+> readLabels :: FilePath -> IO [Int]
+> readLabels filename = do
+>   content <- BL.readFile filename
+>   let (_, _, labels) = runGet deserialiseLabels content
+>   return (map fromIntegral labels)
+
+> uniforms :: Int -> [Double]
+> uniforms n =
+>   fst $ runState (replicateM n (sampleRVar stdUniform)) (mkStdGen seed)
+>     where
+>       seed = 0
+
+We seed the weights in the neural with small random values; if we set
+all the weights to 0 then the gradient descent algorithm might get stuck.
+
+> randomWeightMatrix :: Int -> Int -> [[Double]]
+> randomWeightMatrix numInputs numOutputs = y
+>   where
+>     y = chunksOf numInputs weights
+>     weights = map (/ 100.0) $ uniforms (numOutputs * numInputs)
+
+> nDigits, nNodes :: Int
+> nDigits = 10
+> nNodes  = 20
+
+> main :: IO ()
+> main = do
+>   (nRows, nCols, trainingImages) <- readImages "train-images-idx3-ubyte"
+>   trainingLabels                 <- readLabels "train-labels-idx1-ubyte"
+>   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes
+>       w2  = randomWeightMatrix nNodes nDigits
+>       testNet = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
+>   let us :: V.Vector Int
+>       us = V.take 10 $ V.fromList trainingLabels
+>       exponent = bitSize $ head $ iPixels $ head trainingImages
+>       normalizer = fromIntegral 2^exponent
+>   let vs :: V.Vector [Double]
+>       vs = V.take 10 $ V.fromList $ map (map fromIntegral . iPixels) trainingImages
+>   let fs = iterate (stepOnceTotal gamma us vs) testNet
+>       phi = extractWeights $ head $ drop 1 fs
+>   putStrLn $ show vs
+
+-- >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
+-- >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
+-- >   printf "Neural network: theta_10 = %5.3f, theta_11 = %5.3f\n"
+-- >          (((phi!!0)!!1)!!0) (((phi!!0)!!1)!!1)
+
 
 
 We initialise our algorithm with arbitrary values.
 
 
--- > deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
--- > deserialiseHeader = do
--- >   magicNumber <- getWord32be
--- >   imageCount <- getWord32be
--- >   r <- getWord32be
--- >   c <- getWord32be
--- >   packedData <- getRemainingLazyByteString
--- >   let len = fromIntegral (r * c)
--- >   let unpackedData = chunksOf len (BL.unpack packedData)
--- >   return (magicNumber, imageCount, r, c, unpackedData)
-
--- > readImages :: FilePath -> IO [Image]
--- > readImages filename = do
--- >   content <- BL.readFile filename
--- >   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
--- >   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
-
--- > deserialiseLabels :: Get (Word32, Word32, [Word8])
--- > deserialiseLabels = do
--- >   magicNumber <- getWord32be
--- >   count <- getWord32be
--- >   labelData <- getRemainingLazyByteString
--- >   let labels = BL.unpack labelData
--- >   return (magicNumber, count, labels)
-
--- > readLabels :: FilePath -> IO [Int]
--- > readLabels filename = do
--- >   content <- BL.readFile filename
--- >   let (_, _, labels) = runGet deserialiseLabels content
--- >   return (map fromIntegral labels)
 
 -- > main :: IO ()
 -- > main = do
