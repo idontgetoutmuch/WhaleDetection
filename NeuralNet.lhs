@@ -106,7 +106,7 @@ $$
 E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
 $$
 
-where $\boldsymbol{\hat{y}}$ is the predicted output of the neural net
+where $\hat{\boldsymbol{y}}$ is the predicted output of the neural net
 and $\boldsymbol{y}$ is the observed output.
 
 As with logistic regression, our goal is to find weights for the
@@ -128,7 +128,7 @@ respect to the weights (since we need to minimise the cost
 function). In other words we need to find:
 
 $$
-\nabla E(\boldsymbol{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
+\nabla E(\boldsymbol{x}) \equiv (\frac{\partial E}{\partial w_1}, \ldots, \frac{\partial E}{\partial w_n})
 $$
 
 Once we have this we can take our random starting position and move
@@ -146,22 +146,21 @@ Haskell Foreword
 
 Some pragmas and imports required for the example code.
 
-> {-# LANGUAGE RankNTypes #-}
-> {-# LANGUAGE DeriveFunctor #-}
-> {-# LANGUAGE DeriveFoldable #-}
-> {-# LANGUAGE DeriveTraversable #-}
-> {-# LANGUAGE ScopedTypeVariables #-}
+> {-# LANGUAGE RankNTypes                #-}
+> {-# LANGUAGE DeriveFunctor             #-}
+> {-# LANGUAGE DeriveFoldable            #-}
+> {-# LANGUAGE DeriveTraversable         #-}
+> {-# LANGUAGE ScopedTypeVariables       #-}
+> {-# LANGUAGE TupleSections             #-}
+> {-# LANGUAGE NoMonomorphismRestriction #-}
 
 > {-# OPTIONS_GHC -Wall                     #-}
 > {-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
 > {-# OPTIONS_GHC -fno-warn-type-defaults   #-}
 > {-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
-
 > {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
-> {-# LANGUAGE TupleSections #-}
-
-> module Main (main) where
+> module NeuralNet where
 
 > import Numeric.LinearAlgebra
 > import Numeric.AD
@@ -188,8 +187,6 @@ For use in the appendix.
 >
 > import Data.Maybe
 > import Text.Printf
-> import Debug.Trace
-
 
 Logistic Regression Redux
 -------------------------
@@ -205,7 +202,13 @@ Instead of maximimizing the log likelihood, we will minimize a cost function.
 >   where
 >     yhat = logit $ V.sum $ V.zipWith (*) theta x
 
-We add a regularization term into the total cost so that the parameters do not grow too large.
+> logit :: Floating a =>
+>          a -> a
+> logit x = 1 / (1 + exp (negate x))
+
+We add a regularization term into the total cost so that the
+parameters do not grow too large. Note that we do not regularize over
+the bias.
 
 > delta :: Floating a => a
 > delta = 1.0
@@ -430,6 +433,13 @@ We define a cost function.
 >     predicted = evalNeuralNet net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
+> targets :: Floating a => [[a]]
+> targets = map row [0 .. 2 {- nDigits -} - 1]
+>   where
+>     row m = concat [x, 1.0 : y]
+>       where
+>         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
+
 And the gradient of the cost function. Note that both the cost
 function and its gradient are parameterised over the inputs and the
 output label.
@@ -490,98 +500,8 @@ we do not regularize the weights for the biases.
 > stepOnceTotal gamma y x net =
 >   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
 
-Testing / Debugging
--------------------
-
-> costFnFudge :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
-> costFnFudge expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
->   where
->     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
->     predicted = evalNeuralNet net input
->     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
-
-> delCostFnFudge :: (Ord a, Floating a, Show a) =>
->                          Int ->
->                          [a] ->
->                          BackpropNet a ->
->                          BackpropNet a
-> delCostFnFudge y x = grad f
->   where
->     f theta = costFnFudge y (map auto x) theta
-
-> stepOnceFudge :: Double ->
->             Int ->
->             [Double] ->
->             BackpropNet Double ->
->             BackpropNet Double
-> stepOnceFudge gamma y x theta =
->   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
-
-> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
->   where calcs = propagateNetOld x net
->         x = listToColumnVector (1:input)
-
-> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
-> evalOnePattern net trainingData =
->   isMatch result target
->   where input = fst trainingData
->         target = snd trainingData
->         rawResult = evaluateBPN net input
->         result = interpret rawResult
-
-> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
-> evalAllPatterns = map . evalOnePattern
-
-Appendix
---------
-
-In order to run the trained neural network then we need some training
-data and test data.
-
-FIXME: We can probably get the number of rows and columns from the
-data itself.
-
-Our neural net configuration. We wish to classify images which are $28
-\times 28$ pixels into 10 digits using a single layer neural net with
-20 nodes.
-
-> lRate :: Double
-> lRate = 0.01 -- 0.007
-> nRows, nCols, nNodes, nDigits :: Int
-> nRows = 28
-> nCols = 28
-> nNodes = 20
-> nDigits = 10
->
-> smallRandoms :: (Random a, Floating a) => Int -> [a]
-> smallRandoms seed = map (/100) (randoms (mkStdGen seed))
->
-> randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
-> randomWeightMatrix numInputs numOutputs seed = x
->   where
->     x = (numOutputs >< numInputs) weights
->     weights = take (numOutputs * numInputs) (smallRandoms seed)
->
-> randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
-> randomWeightMatrix' numInputs numOutputs seed = y
->   where
->     -- y :: (Random a, Floating a) => [[a]]
->     y = chunksOf numInputs weights
->     -- weights :: (Random a, Floating a) => [a]
->     weights = take (numOutputs * numInputs) (smallRandoms seed)
-
-> logit :: Floating a =>
->          a -> a
-> logit x = 1 / (1 + exp (negate x))
-
-> actualTheta :: V.Vector Double
-> actualTheta = V.fromList [0.0, 1.0]
-
-We initialise our algorithm with arbitrary values.
-
-> initTheta :: V.Vector Double
-> initTheta = V.replicate (V.length actualTheta) 0.1
+Example I
+---------
 
 Let's try it out. First we need to generate some data.  Rather
 arbitrarily let us create some populations from the `beta`
@@ -615,6 +535,74 @@ We can plot the populations we wish to distinguish by sampling.
 
 > createSample :: V.Vector (Double, Double)
 > createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
+
+> lRate :: Double
+> lRate = 0.01 -- 0.007
+> actualTheta :: V.Vector Double
+> actualTheta = V.fromList [0.0, 1.0]
+> initTheta :: V.Vector Double
+> initTheta = V.replicate (V.length actualTheta) 0.1
+
+> test1 :: IO ()
+> test1 = do
+>
+>   let testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+
+>   let vals :: V.Vector (Double, V.Vector Double)
+>       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
+>
+>   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
+>   printf "Working grad desc: %s\n" $ show $ head $ drop 1000 gs
+>
+>   let us = V.map (round . fst) createSample
+>   let vs = V.map snd createSample
+>   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
+>   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
+
+> fact 0 = 1
+> fact n = n * fact (n-1)
+
+    [ghci]
+    fact
+
+
+Appendix
+--------
+
+In order to run the trained neural network then we need some training
+data and test data.
+
+FIXME: We can probably get the number of rows and columns from the
+data itself.
+
+Our neural net configuration. We wish to classify images which are $28
+\times 28$ pixels into 10 digits using a single layer neural net with
+20 nodes.
+
+> nRows, nCols, nNodes, nDigits :: Int
+> nRows = 28
+> nCols = 28
+> nNodes = 20
+> nDigits = 10
+>
+> smallRandoms :: (Random a, Floating a) => Int -> [a]
+> smallRandoms seed = map (/100) (randoms (mkStdGen seed))
+>
+> randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
+> randomWeightMatrix numInputs numOutputs seed = x
+>   where
+>     x = (numOutputs >< numInputs) weights
+>     weights = take (numOutputs * numInputs) (smallRandoms seed)
+>
+> randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
+> randomWeightMatrix' numInputs numOutputs seed = y
+>   where
+>     -- y :: (Random a, Floating a) => [[a]]
+>     y = chunksOf numInputs weights
+>     -- weights :: (Random a, Floating a) => [a]
+>     weights = take (numOutputs * numInputs) (smallRandoms seed)
+
+We initialise our algorithm with arbitrary values.
 
 > main :: IO ()
 > main = do
@@ -1029,15 +1017,51 @@ using each pair to move a step in the direction of steepest descent.
 >         digit = snd trainingData
 >         target = targets !! digit
 >
-> targets :: Floating a => [[a]]
-> targets = map row [0 .. 2 {- nDigits -} - 1]
->   where
->     row m = concat [x, 1.0 : y]
->       where
->         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
 
 > trainWithAllPatterns :: BackpropNetOld ->
 >                         [([Double], Int)]
 >                         -> BackpropNetOld
 > trainWithAllPatterns = foldl' (flip trainOnePattern)
 
+Testing / Debugging
+-------------------
+
+> costFnFudge :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
+> costFnFudge expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
+>   where
+>     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
+>     predicted = evalNeuralNet net input
+>     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
+
+> delCostFnFudge :: (Ord a, Floating a, Show a) =>
+>                          Int ->
+>                          [a] ->
+>                          BackpropNet a ->
+>                          BackpropNet a
+> delCostFnFudge y x = grad f
+>   where
+>     f theta = costFnFudge y (map auto x) theta
+
+> stepOnceFudge :: Double ->
+>             Int ->
+>             [Double] ->
+>             BackpropNet Double ->
+>             BackpropNet Double
+> stepOnceFudge gamma y x theta =
+>   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
+
+> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
+> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
+>   where calcs = propagateNetOld x net
+>         x = listToColumnVector (1:input)
+
+> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
+> evalOnePattern net trainingData =
+>   isMatch result target
+>   where input = fst trainingData
+>         target = snd trainingData
+>         rawResult = evaluateBPN net input
+>         result = interpret rawResult
+
+> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
+> evalAllPatterns = map . evalOnePattern
