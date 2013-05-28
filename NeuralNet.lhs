@@ -40,7 +40,7 @@ generalisation of (multivariate) linear logistic regression.
 We follow [@rojas1996neural;@Bishop:2006:PRM:1162264]. We are given a training set:
 
 $$
-\{(\vec{x}_0, \vec{y}_0), (\vec{x}_1, \vec{y}_1), \ldots, (\vec{x}_p, \vec{y}_p)\}
+\{(\boldsymbol{x}_0, \boldsymbol{y}_0), (\boldsymbol{x}_1, \boldsymbol{y}_1), \ldots, (\boldsymbol{x}_p, \boldsymbol{y}_p)\}
 $$
 
 of pairs of $n$-dimensional and $m$-dimensional vectors called the
@@ -103,30 +103,32 @@ We are also
 given a cost function:
 
 $$
-E(\vec{x}) = \frac{1}{2}\sum_1^{N_L}(\hat{y}^L_i - y^L_i)^2
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
 $$
 
+where $\boldsymbol{\hat{y}}$ is the predicted output of the neural net
+and $\boldsymbol{y}$ is the observed output.
+
 As with logistic regression, our goal is to find weights for the
-neural network which minimises this cost function. The method that is
-used in backpropagation to is to initialise the weights to some small
-non-zero amount and then use the method of steepest descent (aka
-gradient descent). The idea is that if $f$ is a function of several
-variables then to find its minimum value, one ought to take a small
-step in the direction in which it is decreasing most quickly and
-repeat until no step in any direction results in a decrease. The
-analogy is that if one is walking in the mountains then the quickest
-way down is to walk in the direction which goes down most steeply. Of
-course one get stuck at a local minimum rather than the global minimum
-but from a machine learning point of view this may be acceptable;
-alternatively one may start at random points in the search space and
-check they all give the same minimum.
+neural network which minimises this cost function. We initialise the
+weights to some small non-zero amount and then use the method of
+steepest descent (aka gradient descent). The idea is that if $f$ is a
+function of several variables then to find its minimum value, one
+ought to take a small step in the direction in which it is decreasing
+most quickly and repeat until no step in any direction results in a
+decrease. The analogy is that if one is walking in the mountains then
+the quickest way down is to walk in the direction which goes down most
+steeply. Of course one get stuck at a local minimum rather than the
+global minimum but from a machine learning point of view this may be
+acceptable; alternatively one may start at random points in the search
+space and check they all give the same minimum.
 
 We therefore need calculate the gradient of the loss function with
 respect to the weights (since we need to minimise the cost
 function). In other words we need to find:
 
 $$
-\nabla E(\vec{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
+\nabla E(\boldsymbol{x}) \equiv (\frac{\partial E}{\partial x_1}, \ldots, \frac{\partial E}{\partial x_n})
 $$
 
 Once we have this we can take our random starting position and move
@@ -186,6 +188,7 @@ For use in the appendix.
 >
 > import Data.Maybe
 > import Text.Printf
+> import Debug.Trace
 
 
 Logistic Regression Redux
@@ -216,7 +219,7 @@ We add a regularization term into the total cost so that the parameters do not g
 >   where
 >     l = fromIntegral $ V.length y
 >     a = V.sum $ V.zipWith (cost theta) y x
->     b = (/2) $ V.sum $ V.map (^2) theta
+>     b = (/2) $ V.sum $ V.map (^2) $ V.drop 1 theta
 
 We determine the gradient of the regularized cost function.
 
@@ -353,9 +356,19 @@ Sadly we have to use an inefficient calculation to multiply matrices; see this [
   [ADMatrixMult]: http://www.haskell.org/pipermail/haskell-cafe/2013-April/107543.html
 
 > matMult :: Num a => [[a]] -> [a] -> [a]
-> matMult m v = map (\r -> sum $ zipWith (*) r v) m
+> matMult m v = result
+>   where
+>     lrs = map length m
+>     l   = length v
+>     result = if all (== l) lrs
+>              then map (\r -> sum $ zipWith (*) r v) m
+>              else error $ "Matrix has rows of length " ++ show lrs ++
+>                           " but vector is of length " ++ show l
 
-Now we can forward propagate.
+Now we can propagate forwards. Note that the code from which this is
+borrowed assumes that the inputs are images which are $m \times m$
+pixels each encoded using a grayscale, hence the references to bits
+and the check that values lie in the range $0 \leq x \leq 1$.
 
 > propagateNet :: (Floating a, Ord a) => [a] -> BackpropNet a -> [PropagatedLayer a]
 > propagateNet input net = tail calcs
@@ -370,39 +383,42 @@ Now we can forward propagate.
 >           else error ("Input pattern has " ++ show got ++ " bits, but " ++
 >                       show expected ++ " were expected")
 >           where got      = length input
->                 expected = length $ head $ layerWeights $ head $ layers net
+>                 expected = (+(negate 1)) $
+>                            length $
+>                            head $
+>                            layerWeights $
+>                            head $
+>                            layers net
 >
 >         validateInputValues input =
 >           if (minimum input >= 0) && (maximum input <= 1)
 >           then input
 >           else error "Input bits outside of range [0,1]"
 
+Note that we add a 1 to the inputs to each layer to give the bias.
+
 > propagate :: Floating a => PropagatedLayer a -> Layer a -> PropagatedLayer a
-> propagate layerJ layerK = PropagatedLayer
+> propagate layerJ layerK = result
+>   where
+>     result =
+>       PropagatedLayer
 >         {
 >           propLayerIn         = layerJOut,
 >           propLayerOut        = map f a,
 >           propLayerWeights    = weights,
 >           propLayerActFun     = layerFunction layerK
 >         }
->   where layerJOut = propLayerOut layerJ
->         weights   = layerWeights layerK
->         a = weights `matMult` layerJOut
->         f :: Floating a => a -> a
->         f = activationFunction $ layerFunction layerK
-
-Note that we add a 1 to the inputs to give the bias.
-
-FIXME: This seems just to be in the input layer. What about biases for
-the hidden layers?
+>     layerJOut = propLayerOut layerJ
+>     weights   = layerWeights layerK
+>     a = weights `matMult` (1:layerJOut)
+>     f :: Floating a => a -> a
+>     f = activationFunction $ layerFunction layerK
 
 > evalNeuralNet :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
 > evalNeuralNet net input = propLayerOut $ last calcs
->   where calcs = propagateNet (1:input) net
+>   where calcs = propagateNet input net
 
 We define a cost function.
-
-FIXME: We could use a log-likelihood function as in the coursera exercise.
 
 > costFn :: (Floating a, Ord a, Show a) =>
 >           Int ->
@@ -438,7 +454,8 @@ Now we can implement (stochastic) gradient descent.
 >   net + fmap (* (negate gamma)) (delCostFn y x net)
 
 If instead we would rather perform gradient descent over the whole
-training set (rather than stochastically) then we can do so:
+training set (rather than stochastically) then we can do so. Note that
+we do not regularize the weights for the biases.
 
 > totalCostNN :: (Floating a, Ord a, Show a) =>
 >                V.Vector Int ->
@@ -450,7 +467,11 @@ training set (rather than stochastically) then we can do so:
 >     l = fromIntegral $ V.length expectedDigits
 >     a = V.sum $ V.zipWith (\expectedDigit input -> costFn expectedDigit input net)
 >                           expectedDigits inputs
->     b = (/2) $ sum $ map (^2) $ concat $ concat $ extractWeights net
+>     b = (/2) $ sum $ map (^2) $
+>         concat $ concat $
+>         map stripBias $
+>         extractWeights net
+>     stripBias xss = map (drop 1) xss
 
 > delTotalCostNN :: (Floating a, Ord a, Show a) =>
 >                   V.Vector Int ->
@@ -468,22 +489,6 @@ training set (rather than stochastically) then we can do so:
 >                  BackpropNet Double
 > stepOnceTotal gamma y x net =
 >   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
-
-> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
->   where calcs = propagateNetOld x net
->         x = listToColumnVector (1:input)
-
-> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
-> evalOnePattern net trainingData =
->   isMatch result target
->   where input = fst trainingData
->         target = snd trainingData
->         rawResult = evaluateBPN net input
->         result = interpret rawResult
-
-> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
-> evalAllPatterns = map . evalOnePattern
 
 Testing / Debugging
 -------------------
@@ -511,6 +516,22 @@ Testing / Debugging
 >             BackpropNet Double
 > stepOnceFudge gamma y x theta =
 >   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
+
+> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
+> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
+>   where calcs = propagateNetOld x net
+>         x = listToColumnVector (1:input)
+
+> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
+> evalOnePattern net trainingData =
+>   isMatch result target
+>   where input = fst trainingData
+>         target = snd trainingData
+>         rawResult = evaluateBPN net input
+>         result = interpret rawResult
+
+> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
+> evalAllPatterns = map . evalOnePattern
 
 Appendix
 --------
