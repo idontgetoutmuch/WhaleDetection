@@ -537,7 +537,7 @@ We can plot the populations we wish to distinguish by sampling.
 > createSample = V.fromList $ take 100 $ mixSamples sample1 sample0
 
 > lRate :: Double
-> lRate = 0.01 -- 0.007
+> lRate = 0.01
 > actualTheta :: V.Vector Double
 > actualTheta = V.fromList [0.0, 1.0]
 > initTheta :: V.Vector Double
@@ -552,123 +552,37 @@ We can plot the populations we wish to distinguish by sampling.
 >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
 >
 >   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
->   printf "Working grad desc: %s\n" $ show $ head $ drop 1000 gs
+>       theta = head $ drop 1000 gs
+>   printf "Logistic regression: theta_0 = %5.3f, theta_1 = %5.3f\n"
+>          (theta V.! 0) (theta V.! 1)
 >
 >   let us = V.map (round . fst) createSample
 >   let vs = V.map snd createSample
 >   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
->   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
-
-> fact 0 = 1
-> fact n = n * fact (n-1)
+>       phi = extractWeights $ head $ drop 1000 fs
+>   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
+>          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
+>   printf "Neural network: theta_10 = %5.3f, theta_11 = %5.3f\n"
+>          (((phi!!0)!!1)!!0) (((phi!!0)!!1)!!1)
 
     [ghci]
-    fact
-
+    test1
 
 Appendix
 --------
 
-In order to run the trained neural network then we need some training
-data and test data.
+Let's now try the archetypal example of handwritten digit recognition
+using the [MNIST database][MNIST]
 
 FIXME: We can probably get the number of rows and columns from the
 data itself.
 
 Our neural net configuration. We wish to classify images which are $28
-\times 28$ pixels into 10 digits using a single layer neural net with
-20 nodes.
-
-> nRows, nCols, nNodes, nDigits :: Int
-> nRows = 28
-> nCols = 28
-> nNodes = 20
-> nDigits = 10
->
-> smallRandoms :: (Random a, Floating a) => Int -> [a]
-> smallRandoms seed = map (/100) (randoms (mkStdGen seed))
->
-> randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
-> randomWeightMatrix numInputs numOutputs seed = x
->   where
->     x = (numOutputs >< numInputs) weights
->     weights = take (numOutputs * numInputs) (smallRandoms seed)
->
-> randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
-> randomWeightMatrix' numInputs numOutputs seed = y
->   where
->     -- y :: (Random a, Floating a) => [[a]]
->     y = chunksOf numInputs weights
->     -- weights :: (Random a, Floating a) => [a]
->     weights = take (numOutputs * numInputs) (smallRandoms seed)
-
-We initialise our algorithm with arbitrary values.
-
-> main :: IO ()
-> main = do
->   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
->       w2  = randomWeightMatrix nNodes nDigits 42
->       w1' :: (Random a, Floating a) => [[a]]
->       w1' = randomWeightMatrix' (nRows * nCols + 1) nNodes 7
->       w2' :: (Random a, Floating a) => [[a]]
->       w2' = randomWeightMatrix' nNodes nDigits 42
->       initialNet  = buildBackpropNetOld  lRate [w1, w2] tanhAS
->       testNet = buildBackpropNet lRate [[[0.1, 0.1]]] (ActivationFunction logit)
->       testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
->
->   trainingData <- fmap (take 8000) readTrainingData
->
->   trainingLabels <- readLabels "train-labels-idx1-ubyte"
->   trainingImages <- readImages "train-images-idx3-ubyte"
->
->   let trainingData' :: RealFrac a => [LabelledImage a]
->       trainingData' = zip (map normalisedData' trainingImages) trainingLabels
->
->       u = round $ fst $ V.head createSample
->       v = snd $ V.head createSample
->       us = V.map round ws
->       vs = V.map snd createSample
->       ws = V.map fst createSample
->       xs = V.map (V.cons 1.0 . V.singleton) ws
-
->   let vals :: V.Vector (Double, V.Vector Double)
->       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
->
->   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
->   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
->
->   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
->   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
->
->   error "Finished"
-
-
->   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFnFudge u [v] testNet
->   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet'
->   printf "Step once %s\n" $ show $ extractWeights $ stepOnceFudge lRate u [v] testNet
->   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet'
->
->   let foo' = V.scanl' (\s (u, v) -> stepOnceFudge lRate u [v] s) testNet
->                       (V.zip (V.map fromIntegral us) vs)
->   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo'
->   let foo'' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet'
->                        (V.zip (V.map fromIntegral us) vs)
->   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo''
-
->   putStrLn $ show $ extractWeights testNet
->
->   let finalNet = trainWithAllPatterns initialNet trainingData
->
->   testData <- fmap (take 1000) readTestData
->   putStrLn $ "Testing with " ++ show (length testData) ++ " images"
->   let results = evalAllPatterns finalNet testData
->   let score = fromIntegral (sum results)
->   let count = fromIntegral (length testData)
->   let percentage = 100.0 * score / count
->   putStrLn $ "I got " ++ show percentage ++ "% correct"
+\times 28$ pixels into 10 digits using a single (hidden) layer neural
+net with 20 nodes.
 
 We (or rather the authors of the [MonadReader article][MonadReader])
-represent an image as a reocord; the pixels are represented using an
+represent an image as a record; the pixels are represented using an
 8-bit grayscale.
 
 > data Image = Image {
@@ -677,110 +591,181 @@ represent an image as a reocord; the pixels are represented using an
 >     , iPixels  :: [Word8]
 >     } deriving (Eq, Show)
 
+-- > nRows, nCols, nNodes, nDigits :: Int
+-- > nRows = 28
+-- > nCols = 28
+-- > nNodes = 20
+-- > nDigits = 10
+-- >
+-- > smallRandoms :: (Random a, Floating a) => Int -> [a]
+-- > smallRandoms seed = map (/100) (randoms (mkStdGen seed))
+-- >
+-- > randomWeightMatrix :: Int -> Int -> Int -> Matrix Double
+-- > randomWeightMatrix numInputs numOutputs seed = x
+-- >   where
+-- >     x = (numOutputs >< numInputs) weights
+-- >     weights = take (numOutputs * numInputs) (smallRandoms seed)
+-- >
+-- > randomWeightMatrix' :: (Floating a, Random a) => Int -> Int -> Int -> [[a]]
+-- > randomWeightMatrix' numInputs numOutputs seed = y
+-- >   where
+-- >     -- y :: (Random a, Floating a) => [[a]]
+-- >     y = chunksOf numInputs weights
+-- >     -- weights :: (Random a, Floating a) => [a]
+-- >     weights = take (numOutputs * numInputs) (smallRandoms seed)
+
+
+In order to run the trained neural network then we need some training
+data and test data.
+
+
+We initialise our algorithm with arbitrary values.
+
+
+-- > deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
+-- > deserialiseHeader = do
+-- >   magicNumber <- getWord32be
+-- >   imageCount <- getWord32be
+-- >   r <- getWord32be
+-- >   c <- getWord32be
+-- >   packedData <- getRemainingLazyByteString
+-- >   let len = fromIntegral (r * c)
+-- >   let unpackedData = chunksOf len (BL.unpack packedData)
+-- >   return (magicNumber, imageCount, r, c, unpackedData)
+
+-- > readImages :: FilePath -> IO [Image]
+-- > readImages filename = do
+-- >   content <- BL.readFile filename
+-- >   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
+-- >   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
+
+-- > deserialiseLabels :: Get (Word32, Word32, [Word8])
+-- > deserialiseLabels = do
+-- >   magicNumber <- getWord32be
+-- >   count <- getWord32be
+-- >   labelData <- getRemainingLazyByteString
+-- >   let labels = BL.unpack labelData
+-- >   return (magicNumber, count, labels)
+
+-- > readLabels :: FilePath -> IO [Int]
+-- > readLabels filename = do
+-- >   content <- BL.readFile filename
+-- >   let (_, _, labels) = runGet deserialiseLabels content
+-- >   return (map fromIntegral labels)
+
+-- > main :: IO ()
+-- > main = do
+-- >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
+-- >       w2  = randomWeightMatrix nNodes nDigits 42
+-- >       w1' :: (Random a, Floating a) => [[a]]
+-- >       w1' = randomWeightMatrix' (nRows * nCols + 1) nNodes 7
+-- >       w2' :: (Random a, Floating a) => [[a]]
+-- >       w2' = randomWeightMatrix' nNodes nDigits 42
+-- >       initialNet  = buildBackpropNetOld  lRate [w1, w2] tanhAS
+-- >       testNet = buildBackpropNet lRate [[[0.1, 0.1]]] (ActivationFunction logit)
+-- >       testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+-- >
+-- >   trainingData <- fmap (take 8000) readTrainingData
+-- >
+-- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+-- >   trainingImages <- readImages "train-images-idx3-ubyte"
+-- >
+-- >   let trainingData' :: RealFrac a => [LabelledImage a]
+-- >       trainingData' = zip (map normalisedData' trainingImages) trainingLabels
+-- >
+-- >       u = round $ fst $ V.head createSample
+-- >       v = snd $ V.head createSample
+-- >       us = V.map round ws
+-- >       vs = V.map snd createSample
+-- >       ws = V.map fst createSample
+-- >       xs = V.map (V.cons 1.0 . V.singleton) ws
+
+-- >   let vals :: V.Vector (Double, V.Vector Double)
+-- >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
+-- >
+-- >   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
+-- >   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
+-- >
+-- >   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
+-- >   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
+-- >
+-- >   error "Finished"
+
+
+
+
 A labelled image contains the image and what this image actually
 represents e.g. the image of the numeral 9 could and should be
 represented by the value 9.
 
-> type LabelledImage a = ([a], Int)
+-- > type LabelledImage a = ([a], Int)
+-- >
+-- > -- | Inputs, outputs and targets are represented as column vectors instead of lists
+-- > type ColumnVector a = Matrix a
+-- >
+-- >  -- | Convert a column vector to a list
+-- > columnVectorToList :: (Ord a, Field a)
+-- >     -- | The column vector to convert
+-- >     => ColumnVector a
+-- >     -- | The resulting list
+-- >     -> [a]
+-- > columnVectorToList = toList . flatten
+-- >
+-- > -- | Convert a list to a column vector
+-- > listToColumnVector :: (Ord a, Field a)
+-- >     -- | the list to convert
+-- >     => [a]
+-- >     -- | the resulting column vector
+-- >     -> ColumnVector a
+-- > listToColumnVector x = (len >< 1) x
+-- >     where len = length x
 
-> deserialiseLabels :: Get (Word32, Word32, [Word8])
-> deserialiseLabels = do
->   magicNumber <- getWord32be
->   count <- getWord32be
->   labelData <- getRemainingLazyByteString
->   let labels = BL.unpack labelData
->   return (magicNumber, count, labels)
->
-> readLabels :: FilePath -> IO [Int]
-> readLabels filename = do
->   content <- BL.readFile filename
->   let (_, _, labels) = runGet deserialiseLabels content
->   return (map fromIntegral labels)
->
-
-> deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
-> deserialiseHeader = do
->   magicNumber <- getWord32be
->   imageCount <- getWord32be
->   r <- getWord32be
->   c <- getWord32be
->   packedData <- getRemainingLazyByteString
->   let len = fromIntegral (r * c)
->   let unpackedData = chunksOf len (BL.unpack packedData)
->   return (magicNumber, imageCount, r, c, unpackedData)
->
-> readImages :: FilePath -> IO [Image]
-> readImages filename = do
->   content <- BL.readFile filename
->   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
->   return (map (Image (fromIntegral r) (fromIntegral c)) unpackedData)
->
-> -- | Inputs, outputs and targets are represented as column vectors instead of lists
-> type ColumnVector a = Matrix a
->
->  -- | Convert a column vector to a list
-> columnVectorToList :: (Ord a, Field a)
->     -- | The column vector to convert
->     => ColumnVector a
->     -- | The resulting list
->     -> [a]
-> columnVectorToList = toList . flatten
->
-> -- | Convert a list to a column vector
-> listToColumnVector :: (Ord a, Field a)
->     -- | the list to convert
->     => [a]
->     -- | the resulting column vector
->     -> ColumnVector a
-> listToColumnVector x = (len >< 1) x
->     where len = length x
-
-> tanhAS :: ActivationFunction
-> tanhAS = ActivationFunction
->     {
->       activationFunction = tanh
->     }
+-- > tanhAS :: ActivationFunction
+-- > tanhAS = ActivationFunction
+-- >     {
+-- >       activationFunction = tanh
+-- >     }
 
 FIXME: This looks a bit yuk
 
-> isMatch :: (Eq a) => a -> a -> Int
-> isMatch x y =
->   if x == y
->   then 1
->   else 0
+-- > isMatch :: (Eq a) => a -> a -> Int
+-- > isMatch x y =
+-- >   if x == y
+-- >   then 1
+-- >   else 0
 
-> interpret :: [Double] -> Int
-> interpret v = fromJust (elemIndex (maximum v) v)
+-- > interpret :: [Double] -> Int
+-- > interpret v = fromJust (elemIndex (maximum v) v)
 
-> readTrainingData ::  Floating a => IO [LabelledImage a]
-> readTrainingData = do
->   trainingLabels <- readLabels "train-labels-idx1-ubyte"
->   trainingImages <- readImages "train-images-idx3-ubyte"
->   return $ zip (map normalisedData trainingImages) trainingLabels
+-- > readTrainingData ::  Floating a => IO [LabelledImage a]
+-- > readTrainingData = do
+-- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+-- >   trainingImages <- readImages "train-images-idx3-ubyte"
+-- >   return $ zip (map normalisedData trainingImages) trainingLabels
 
-> readTrainingData' ::  RealFrac a => IO [LabelledImage a]
-> readTrainingData' = do
->   trainingLabels <- readLabels "train-labels-idx1-ubyte"
->   trainingImages <- readImages "train-images-idx3-ubyte"
->   return $ zip (map normalisedData' trainingImages) trainingLabels
+-- > readTrainingData' ::  RealFrac a => IO [LabelledImage a]
+-- > readTrainingData' = do
+-- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
+-- >   trainingImages <- readImages "train-images-idx3-ubyte"
+-- >   return $ zip (map normalisedData' trainingImages) trainingLabels
 
-> readTestData :: Floating a => IO [LabelledImage a]
-> readTestData = do
->   putStrLn "Reading test labels..."
->   testLabels <- readLabels "t10k-labels-idx1-ubyte"
->   testImages <- readImages "t10k-images-idx3-ubyte"
->   return (zip (map normalisedData testImages) testLabels)
+-- > readTestData :: Floating a => IO [LabelledImage a]
+-- > readTestData = do
+-- >   putStrLn "Reading test labels..."
+-- >   testLabels <- readLabels "t10k-labels-idx1-ubyte"
+-- >   testImages <- readImages "t10k-images-idx3-ubyte"
+-- >   return (zip (map normalisedData testImages) testLabels)
 
-> normalisedData :: Floating a => Image -> [a]
-> normalisedData image = map normalisePixel (iPixels image)
->   where
->     normalisePixel :: Floating a => Word8 -> a
->     normalisePixel p = (fromIntegral p) / 255.0
+-- > normalisedData :: Floating a => Image -> [a]
+-- > normalisedData image = map normalisePixel (iPixels image)
+-- >   where
+-- >     normalisePixel :: Floating a => Word8 -> a
+-- >     normalisePixel p = (fromIntegral p) / 255.0
 
-> normalisedData' :: RealFrac a => Image -> [a]
-> normalisedData' image = map normalisePixel (iPixels image)
->   where
->     normalisePixel p = (fromIntegral p) / 255.0
+-- > normalisedData' :: RealFrac a => Image -> [a]
+-- > normalisedData' image = map normalisePixel (iPixels image)
+-- >   where
+-- >     normalisePixel p = (fromIntegral p) / 255.0
 
 
 Backpropagation
@@ -793,20 +778,20 @@ The implementation below is a modified version of [MonadLayer].
 We represent a layer as record consisting of the matrix of weights and
 the activation function.
 
-> data LayerOld =
->   LayerOld
->   {
->     layerWeightsOld  :: Matrix Double,
->     layerFunctionOld :: ActivationFunction
->   }
+-- > data LayerOld =
+-- >   LayerOld
+-- >   {
+-- >     layerWeightsOld  :: Matrix Double,
+-- >     layerFunctionOld :: ActivationFunction
+-- >   }
 
 Our neural network consists of a list of layers together with a learning rate.
 
-> data BackpropNetOld = BackpropNetOld
->     {
->       layersOld :: [LayerOld],
->       learningRateOld :: Double
->     }
+-- > data BackpropNetOld = BackpropNetOld
+-- >     {
+-- >       layersOld :: [LayerOld],
+-- >       learningRateOld :: Double
+-- >     }
 
 The constructor function _buildBackPropnet_ does nothing more than
 populate _BackPropNet_ checking that all the matrices of weights are
@@ -814,94 +799,94 @@ compatible.  It takes a learning rate, a list of matrices of weights
 for each layer, a single common activation function and produce a
 neural network.
 
-> buildBackpropNetOld ::
->   Double ->
->   [Matrix Double] ->
->   ActivationFunction ->
->   BackpropNetOld
-> buildBackpropNetOld learningRate ws f =
->   BackpropNetOld {
->       layersOld       = map buildLayer checkedWeights
->     , learningRateOld = learningRate
->     }
->   where checkedWeights = scanl1 checkDimensions ws
->         buildLayer w   = LayerOld { layerWeightsOld  = w
->                                , layerFunctionOld = f
->                                }
->         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
->         checkDimensions w1 w2 =
->           if rows w1 == cols w2
->           then w2
->           else error "Inconsistent dimensions in weight matrix"
+-- > buildBackpropNetOld ::
+-- >   Double ->
+-- >   [Matrix Double] ->
+-- >   ActivationFunction ->
+-- >   BackpropNetOld
+-- > buildBackpropNetOld learningRate ws f =
+-- >   BackpropNetOld {
+-- >       layersOld       = map buildLayer checkedWeights
+-- >     , learningRateOld = learningRate
+-- >     }
+-- >   where checkedWeights = scanl1 checkDimensions ws
+-- >         buildLayer w   = LayerOld { layerWeightsOld  = w
+-- >                                , layerFunctionOld = f
+-- >                                }
+-- >         checkDimensions :: Matrix Double -> Matrix Double -> Matrix Double
+-- >         checkDimensions w1 w2 =
+-- >           if rows w1 == cols w2
+-- >           then w2
+-- >           else error "Inconsistent dimensions in weight matrix"
 
 We keep a record of calculations at each layer in the neural network.
 
-> data PropagatedLayerOld
->     = PropagatedLayerOld
->         {
->           propLayerInOld         :: ColumnVector Double,
->           propLayerOutOld        :: ColumnVector Double,
->           propLayerActFun'ValOld :: ColumnVector Double,
->           propLayerWeightsOld    :: Matrix Double,
->           propLayerActFunOld     :: ActivationFunction
->         }
->     | PropagatedSensorLayerOld
->         {
->           propLayerOutOld :: ColumnVector Double
->         }
+-- > data PropagatedLayerOld
+-- >     = PropagatedLayerOld
+-- >         {
+-- >           propLayerInOld         :: ColumnVector Double,
+-- >           propLayerOutOld        :: ColumnVector Double,
+-- >           propLayerActFun'ValOld :: ColumnVector Double,
+-- >           propLayerWeightsOld    :: Matrix Double,
+-- >           propLayerActFunOld     :: ActivationFunction
+-- >         }
+-- >     | PropagatedSensorLayerOld
+-- >         {
+-- >           propLayerOutOld :: ColumnVector Double
+-- >         }
 
 We take a record of the calculations at one layer, a layer and produce
 the record of the calculations at the next layer.
 
-> propagateOld :: PropagatedLayerOld -> LayerOld -> PropagatedLayerOld
-> propagateOld layerJ layerK = PropagatedLayerOld
->         {
->           propLayerInOld         = layerJOut,
->           propLayerOutOld        = mapMatrix f a,
->           propLayerActFun'ValOld = mapMatrix (diff f) a,
->           propLayerWeightsOld    = weights,
->           propLayerActFunOld     = layerFunctionOld layerK
->         }
->   where layerJOut = propLayerOutOld layerJ
->         weights   = layerWeightsOld layerK
->         a         = weights <> layerJOut
->         f :: Floating a => a -> a
->         f = activationFunction $ layerFunctionOld layerK
+-- > propagateOld :: PropagatedLayerOld -> LayerOld -> PropagatedLayerOld
+-- > propagateOld layerJ layerK = PropagatedLayerOld
+-- >         {
+-- >           propLayerInOld         = layerJOut,
+-- >           propLayerOutOld        = mapMatrix f a,
+-- >           propLayerActFun'ValOld = mapMatrix (diff f) a,
+-- >           propLayerWeightsOld    = weights,
+-- >           propLayerActFunOld     = layerFunctionOld layerK
+-- >         }
+-- >   where layerJOut = propLayerOutOld layerJ
+-- >         weights   = layerWeightsOld layerK
+-- >         a         = weights <> layerJOut
+-- >         f :: Floating a => a -> a
+-- >         f = activationFunction $ layerFunctionOld layerK
 
 With this we can take an input to the neural network, the neural
 network itself and produce a collection of records of the calculations
 at each layer.
 
-> propagateNetOld :: ColumnVector Double -> BackpropNetOld -> [PropagatedLayerOld]
-> propagateNetOld input net = tail calcs
->   where calcs = scanl propagateOld layer0 (layersOld net)
->         layer0 = PropagatedSensorLayerOld $ validateInput net input
->
->         validateInput :: BackpropNetOld -> ColumnVector Double -> ColumnVector Double
->         validateInput net = validateInputValues . validateInputDimensions net
->
->         validateInputDimensions ::
->           BackpropNetOld ->
->           ColumnVector Double ->
->           ColumnVector Double
->         validateInputDimensions net input =
->           if got == expected
->           then input
->           else error ("Input pattern has " ++ show got ++ " bits, but " ++
->                       show expected ++ " were expected")
->           where got      = rows input
->                 expected = inputWidth $ head $ layersOld net
->
->         validateInputValues :: ColumnVector Double -> ColumnVector Double
->         validateInputValues input =
->           if (minimum ns >= 0) && (maximum ns <= 1)
->           then input
->           else error "Input bits outside of range [0,1]"
->           where
->             ns = toList ( flatten input )
->
->         inputWidth :: LayerOld -> Int
->         inputWidth = cols . layerWeightsOld
+-- > propagateNetOld :: ColumnVector Double -> BackpropNetOld -> [PropagatedLayerOld]
+-- > propagateNetOld input net = tail calcs
+-- >   where calcs = scanl propagateOld layer0 (layersOld net)
+-- >         layer0 = PropagatedSensorLayerOld $ validateInput net input
+-- >
+-- >         validateInput :: BackpropNetOld -> ColumnVector Double -> ColumnVector Double
+-- >         validateInput net = validateInputValues . validateInputDimensions net
+-- >
+-- >         validateInputDimensions ::
+-- >           BackpropNetOld ->
+-- >           ColumnVector Double ->
+-- >           ColumnVector Double
+-- >         validateInputDimensions net input =
+-- >           if got == expected
+-- >           then input
+-- >           else error ("Input pattern has " ++ show got ++ " bits, but " ++
+-- >                       show expected ++ " were expected")
+-- >           where got      = rows input
+-- >                 expected = inputWidth $ head $ layersOld net
+-- >
+-- >         validateInputValues :: ColumnVector Double -> ColumnVector Double
+-- >         validateInputValues input =
+-- >           if (minimum ns >= 0) && (maximum ns <= 1)
+-- >           then input
+-- >           else error "Input bits outside of range [0,1]"
+-- >           where
+-- >             ns = toList ( flatten input )
+-- >
+-- >         inputWidth :: LayerOld -> Int
+-- >         inputWidth = cols . layerWeightsOld
 
 
 We keep a record of the back propagation calculations at each layer in
@@ -914,154 +899,196 @@ the neural network:
 * The outputs from the layer.
 * The activation function.
 
-> data BackpropagatedLayer = BackpropagatedLayer
->     {
->       backpropOutGrad    :: ColumnVector Double,
->       backpropWeightGrad :: Matrix Double,
->       backpropActFun'Val :: ColumnVector Double,
->       backpropIn         :: ColumnVector Double,
->       backpropOut        :: ColumnVector Double,
->       backpropWeights    :: Matrix Double,
->       backPropActFun     :: ActivationFunction
->     }
+-- > data BackpropagatedLayer = BackpropagatedLayer
+-- >     {
+-- >       backpropOutGrad    :: ColumnVector Double,
+-- >       backpropWeightGrad :: Matrix Double,
+-- >       backpropActFun'Val :: ColumnVector Double,
+-- >       backpropIn         :: ColumnVector Double,
+-- >       backpropOut        :: ColumnVector Double,
+-- >       backpropWeights    :: Matrix Double,
+-- >       backPropActFun     :: ActivationFunction
+-- >     }
 
 Propagate the inputs backward through this layer to produce an output.
 
-> backpropagate :: PropagatedLayerOld ->
->                  BackpropagatedLayer ->
->                  BackpropagatedLayer
-> backpropagate layerJ layerK = BackpropagatedLayer
->     {
->       backpropOutGrad    = dazzleJ,
->       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
->       backpropActFun'Val = f'aJ,
->       backpropIn         = bpIn,
->       backpropOut        = propLayerOutOld layerJ,
->       backpropWeights    = propLayerWeightsOld layerJ,
->       backPropActFun     = propLayerActFunOld layerJ
->     }
->     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
->           dazzleK = backpropOutGrad layerK
->           f'aK    = backpropActFun'Val layerK
->           f'aJ    = propLayerActFun'ValOld layerJ
->           bpIn    = propLayerInOld layerJ
+-- > backpropagate :: PropagatedLayerOld ->
+-- >                  BackpropagatedLayer ->
+-- >                  BackpropagatedLayer
+-- > backpropagate layerJ layerK = BackpropagatedLayer
+-- >     {
+-- >       backpropOutGrad    = dazzleJ,
+-- >       backpropWeightGrad = errorGrad dazzleJ f'aJ bpIn,
+-- >       backpropActFun'Val = f'aJ,
+-- >       backpropIn         = bpIn,
+-- >       backpropOut        = propLayerOutOld layerJ,
+-- >       backpropWeights    = propLayerWeightsOld layerJ,
+-- >       backPropActFun     = propLayerActFunOld layerJ
+-- >     }
+-- >     where dazzleJ = (trans $ backpropWeights layerK) <> (dazzleK * f'aK)
+-- >           dazzleK = backpropOutGrad layerK
+-- >           f'aK    = backpropActFun'Val layerK
+-- >           f'aJ    = propLayerActFun'ValOld layerJ
+-- >           bpIn    = propLayerInOld layerJ
 
-> errorGrad :: ColumnVector Double ->
->              ColumnVector Double ->
->              ColumnVector Double ->
->              Matrix Double
-> errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
+-- > errorGrad :: ColumnVector Double ->
+-- >              ColumnVector Double ->
+-- >              ColumnVector Double ->
+-- >              Matrix Double
+-- > errorGrad dazzle f'a input = (dazzle * f'a) <> trans input
 
-> backpropagateFinalLayer :: PropagatedLayerOld ->
->                            ColumnVector Double ->
->                            BackpropagatedLayer
-> backpropagateFinalLayer l t = BackpropagatedLayer
->     {
->       backpropOutGrad    = dazzle,
->       backpropWeightGrad = errorGrad dazzle f'a (propLayerInOld l),
->       backpropActFun'Val = f'a,
->       backpropIn         = propLayerInOld l,
->       backpropOut        = propLayerOutOld l,
->       backpropWeights    = propLayerWeightsOld l,
->       backPropActFun     = propLayerActFunOld l
->     }
->     where dazzle =  propLayerOutOld l - t
->           f'a    = propLayerActFun'ValOld l
+-- > backpropagateFinalLayer :: PropagatedLayerOld ->
+-- >                            ColumnVector Double ->
+-- >                            BackpropagatedLayer
+-- > backpropagateFinalLayer l t = BackpropagatedLayer
+-- >     {
+-- >       backpropOutGrad    = dazzle,
+-- >       backpropWeightGrad = errorGrad dazzle f'a (propLayerInOld l),
+-- >       backpropActFun'Val = f'a,
+-- >       backpropIn         = propLayerInOld l,
+-- >       backpropOut        = propLayerOutOld l,
+-- >       backpropWeights    = propLayerWeightsOld l,
+-- >       backPropActFun     = propLayerActFunOld l
+-- >     }
+-- >     where dazzle =  propLayerOutOld l - t
+-- >           f'a    = propLayerActFun'ValOld l
 
 Move backward (from right to left) through the neural network
 i.e. this is backpropagation itself.
 
-> backpropagateNet :: ColumnVector Double ->
->                     [PropagatedLayerOld] ->
->                     [BackpropagatedLayer]
-> backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
->   where hiddenLayers = init layers
->         layerL = backpropagateFinalLayer (last layers) target
+-- > backpropagateNet :: ColumnVector Double ->
+-- >                     [PropagatedLayerOld] ->
+-- >                     [BackpropagatedLayer]
+-- > backpropagateNet target layers = scanr backpropagate layerL hiddenLayers
+-- >   where hiddenLayers = init layers
+-- >         layerL = backpropagateFinalLayer (last layers) target
 
 Now that we know all the derivatives with respect to the weights in
 every layer, we can create a new layer by moving one step in the
 direction of steepest descent.
 
-> update :: Double ->
->           BackpropagatedLayer ->
->           LayerOld
-> update rate layer = LayerOld
->         {
->           layerWeightsOld = wNew,
->           layerFunctionOld = backPropActFun layer
->         }
->     where wOld = backpropWeights layer
->           delW = rate `scale` backpropWeightGrad layer
->           wNew = wOld - delW
+-- > update :: Double ->
+-- >           BackpropagatedLayer ->
+-- >           LayerOld
+-- > update rate layer = LayerOld
+-- >         {
+-- >           layerWeightsOld = wNew,
+-- >           layerFunctionOld = backPropActFun layer
+-- >         }
+-- >     where wOld = backpropWeights layer
+-- >           delW = rate `scale` backpropWeightGrad layer
+-- >           wNew = wOld - delW
 
 Now we can train our network by taking a list of inputs and outputs
 using each pair to move a step in the direction of steepest descent.
 
-> train :: BackpropNetOld ->
->          [Double] ->
->          [Double] ->
->          BackpropNetOld
-> train net input target =
->   BackpropNetOld { layersOld       = newLayers
->               , learningRateOld = rate
->               }
->   where newLayers            = map (update $ learningRateOld net) backpropagatedLayers
->         rate                 = learningRateOld net
->         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
->         propagatedLayers     = propagateNetOld x net
->         x                    = listToColumnVector (1:input)
+-- > train :: BackpropNetOld ->
+-- >          [Double] ->
+-- >          [Double] ->
+-- >          BackpropNetOld
+-- > train net input target =
+-- >   BackpropNetOld { layersOld       = newLayers
+-- >               , learningRateOld = rate
+-- >               }
+-- >   where newLayers            = map (update $ learningRateOld net) backpropagatedLayers
+-- >         rate                 = learningRateOld net
+-- >         backpropagatedLayers = backpropagateNet (listToColumnVector target) propagatedLayers
+-- >         propagatedLayers     = propagateNetOld x net
+-- >         x                    = listToColumnVector (1:input)
 
-> trainOnePattern :: ([Double], Int) -> BackpropNetOld -> BackpropNetOld
-> trainOnePattern trainingData net = train net input target
->   where input = fst trainingData
->         digit = snd trainingData
->         target = targets !! digit
->
+-- > trainOnePattern :: ([Double], Int) -> BackpropNetOld -> BackpropNetOld
+-- > trainOnePattern trainingData net = train net input target
+-- >   where input = fst trainingData
+-- >         digit = snd trainingData
+-- >         target = targets !! digit
+-- >
 
-> trainWithAllPatterns :: BackpropNetOld ->
->                         [([Double], Int)]
->                         -> BackpropNetOld
-> trainWithAllPatterns = foldl' (flip trainOnePattern)
+-- > trainWithAllPatterns :: BackpropNetOld ->
+-- >                         [([Double], Int)]
+-- >                         -> BackpropNetOld
+-- > trainWithAllPatterns = foldl' (flip trainOnePattern)
 
 Testing / Debugging
 -------------------
 
-> costFnFudge :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
-> costFnFudge expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
->   where
->     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
->     predicted = evalNeuralNet net input
->     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
+-- > costFnFudge :: (Floating a, Ord a, Show a) => Int -> [a] -> BackpropNet a -> a
+-- > costFnFudge expectedDigit input net = 0.5 * sum (map (^2) diffs) + b
+-- >   where
+-- >     b = (/2) $ sum $ map (^2) $ concat $ map concat $ extractWeights net
+-- >     predicted = evalNeuralNet net input
+-- >     diffs = zipWith (-) [fromIntegral expectedDigit] {- (targets!!expectedDigit) -} predicted
 
-> delCostFnFudge :: (Ord a, Floating a, Show a) =>
->                          Int ->
->                          [a] ->
->                          BackpropNet a ->
->                          BackpropNet a
-> delCostFnFudge y x = grad f
->   where
->     f theta = costFnFudge y (map auto x) theta
+-- > delCostFnFudge :: (Ord a, Floating a, Show a) =>
+-- >                          Int ->
+-- >                          [a] ->
+-- >                          BackpropNet a ->
+-- >                          BackpropNet a
+-- > delCostFnFudge y x = grad f
+-- >   where
+-- >     f theta = costFnFudge y (map auto x) theta
 
-> stepOnceFudge :: Double ->
->             Int ->
->             [Double] ->
->             BackpropNet Double ->
->             BackpropNet Double
-> stepOnceFudge gamma y x theta =
->   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
+-- > stepOnceFudge :: Double ->
+-- >             Int ->
+-- >             [Double] ->
+-- >             BackpropNet Double ->
+-- >             BackpropNet Double
+-- > stepOnceFudge gamma y x theta =
+-- >   theta + fmap (* (negate gamma)) (delCostFnFudge y x theta)
 
-> evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
-> evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
->   where calcs = propagateNetOld x net
->         x = listToColumnVector (1:input)
+-- > evaluateBPN :: BackpropNetOld -> [Double] -> [Double]
+-- > evaluateBPN net input = columnVectorToList $ propLayerOutOld $ last calcs
+-- >   where calcs = propagateNetOld x net
+-- >         x = listToColumnVector (1:input)
 
-> evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
-> evalOnePattern net trainingData =
->   isMatch result target
->   where input = fst trainingData
->         target = snd trainingData
->         rawResult = evaluateBPN net input
->         result = interpret rawResult
+-- > evalOnePattern :: BackpropNetOld -> ([Double], Int) -> Int
+-- > evalOnePattern net trainingData =
+-- >   isMatch result target
+-- >   where input = fst trainingData
+-- >         target = snd trainingData
+-- >         rawResult = evaluateBPN net input
+-- >         result = interpret rawResult
 
-> evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
-> evalAllPatterns = map . evalOnePattern
+-- > evalAllPatterns :: BackpropNetOld -> [([Double], Int)] -> [Int]
+-- > evalAllPatterns = map . evalOnePattern
+
+-- > main2 = do
+-- >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
+-- >       w2  = randomWeightMatrix nNodes nDigits 42
+-- >       initialNet  = buildBackpropNetOld  lRate [w1, w2] tanhAS
+-- >       testNet = buildBackpropNet lRate [[[0.1, 0.1]]] (ActivationFunction logit)
+-- >       testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+-- >
+-- >       u = round $ fst $ V.head createSample
+-- >       v = snd $ V.head createSample
+-- >       us = V.map round ws
+-- >       vs = V.map snd createSample
+-- >       ws = V.map fst createSample
+-- >       xs = V.map (V.cons 1.0 . V.singleton) ws
+
+-- >   let vals :: V.Vector (Double, V.Vector Double)
+-- >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
+
+-- >   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFnFudge u [v] testNet
+-- >   printf "Gradient of cost %s\n" $ show $ extractWeights $ delCostFn u [v] testNet'
+-- >   printf "Step once %s\n" $ show $ extractWeights $ stepOnceFudge lRate u [v] testNet
+-- >   printf "Step once %s\n" $ show $ extractWeights $ stepOnce lRate u [v] testNet'
+-- >
+-- >   let foo' = V.scanl' (\s (u, v) -> stepOnceFudge lRate u [v] s) testNet
+-- >                       (V.zip (V.map fromIntegral us) vs)
+-- >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo'
+-- >   let foo'' = V.scanl' (\s (u, v) -> stepOnce lRate u [v] s) testNet'
+-- >                        (V.zip (V.map fromIntegral us) vs)
+-- >   printf "Step many %s\n" $ show $ V.map extractWeights $ V.drop 790 foo''
+
+-- >   putStrLn $ show $ extractWeights testNet
+-- >
+-- >   trainingData <- fmap (take 8000) readTrainingData
+-- >   let finalNet = trainWithAllPatterns initialNet trainingData
+-- >
+-- >   testData <- fmap (take 1000) readTestData
+-- >   putStrLn $ "Testing with " ++ show (length testData) ++ " images"
+-- >   let results = evalAllPatterns finalNet testData
+-- >   let score = fromIntegral (sum results)
+-- >   let count = fromIntegral (length testData)
+-- >   let percentage = 100.0 * score / count
+-- >   putStrLn $ "I got " ++ show percentage ++ "% correct"
