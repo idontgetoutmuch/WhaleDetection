@@ -186,6 +186,8 @@ Some pragmas and imports required for the example code.
 > import Data.Binary.Get
 > import Text.Printf
 
+> import Debug.Trace
+
 Logistic Regression Redux
 -------------------------
 
@@ -303,7 +305,7 @@ extract information from it.
 >                                 }
 >         checkDimensions :: [[a]] -> [[a]] -> [[a]]
 >         checkDimensions w1 w2 =
->           if length w1 == length (head w2)
+>           if 1 + length w1 == length (head w2)
 >           then w2
 >           else error $ "Inconsistent dimensions in weight matrix\n" ++
 >                         show (length w1)        ++ "\n" ++
@@ -371,7 +373,7 @@ borrowed assumes that the inputs are images which are $m \times m$
 pixels each encoded using a grayscale, hence the references to bits
 and the check that values lie in the range $0 \leq x \leq 1$.
 
-> propagateNet :: (Floating a, Ord a) => [a] -> BackpropNet a -> [PropagatedLayer a]
+> propagateNet :: (Floating a, Ord a, Show a) => [a] -> BackpropNet a -> [PropagatedLayer a]
 > propagateNet input net = tail calcs
 >   where calcs = scanl propagate layer0 (layers net)
 >         layer0 = PropagatedSensorLayer $ validateInput net input
@@ -398,8 +400,12 @@ and the check that values lie in the range $0 \leq x \leq 1$.
 
 Note that we add a 1 to the inputs to each layer to give the bias.
 
-> propagate :: Floating a => PropagatedLayer a -> Layer a -> PropagatedLayer a
-> propagate layerJ layerK = result
+> propagate :: (Floating a, Show a) => PropagatedLayer a -> Layer a -> PropagatedLayer a
+> propagate layerJ layerK = {- trace ("weights = " ++ show weights ++ "\n" ++
+>                                  "1:layerJOut = " ++ show (1:layerJOut) ++ "\n" ++
+>                                  "a = " ++ show a ++ "\n" ++
+>                                  "map f a = " ++ show (map f a)) $ -}
+>                           result
 >   where
 >     result =
 >       PropagatedLayer
@@ -415,7 +421,7 @@ Note that we add a 1 to the inputs to each layer to give the bias.
 >     f :: Floating a => a -> a
 >     f = activationFunction $ layerFunction layerK
 
-> evalNeuralNet :: (Floating a, Ord a) => BackpropNet a -> [a] -> [a]
+> evalNeuralNet :: (Floating a, Ord a, Show a) => BackpropNet a -> [a] -> [a]
 > evalNeuralNet net input = propLayerOut $ last calcs
 >   where calcs = propagateNet input net
 
@@ -426,19 +432,21 @@ We define a cost function.
 >           [a] ->
 >           BackpropNet a ->
 >           a
-> costFn expectedDigit input net = 0.5 * sum (map (^2) diffs)
+> costFn expectedDigit input net = {- trace ("expected = " ++ show (targets!!expectedDigit) ++ "\n" ++
+>                                         "predicted = " ++ show predicted) $ -}
+>                                  0.5 * sum (map (^2) diffs)
 >   where
 >     predicted = evalNeuralNet net input
 >     diffs = zipWith (-) (targets!!expectedDigit) predicted
 
-FIXME: This is screwed. Sometimes we want 2 digits and sometimes we want 10.
+FIXME: This is screwed. Sometimes we want 2 digits and sometimes we want 10 and sometimes we want 4 or 3!
 
 > targets :: Floating a => [[a]]
-> targets = map row [0 .. 10 {- nDigits -} - 1]
+> targets = map row [0 .. 3 {- nDigits -} - 1]
 >   where
 >     row m = concat [x, 1.0 : y]
 >       where
->         (x, y) = splitAt m (take (10 {- nDigits -} - 1) $ repeat 0.0)
+>         (x, y) = splitAt m (take (3 {- nDigits -} - 1) $ repeat 0.0)
 
 And the gradient of the cost function. Note that both the cost
 function and its gradient are parameterised over the inputs and the
@@ -472,7 +480,12 @@ we do not regularize the weights for the biases.
 >                V.Vector [a] ->
 >                BackpropNet a ->
 >                a
-> totalCostNN expectedDigits inputs net = (a + delta * b) / l
+> totalCostNN expectedDigits inputs net = {- trace ("cost = " ++ show cost ++ "\n" ++
+>                                                "a = " ++ show a ++ "\n" ++
+>                                                "b = " ++ show b ++ "\n" ++
+>                                                "l = " ++ show l ++ "\n" ++
+>                                                "expectedDigits = " ++ show expectedDigits) $ -}
+>                                         cost
 >   where
 >     l = fromIntegral $ V.length expectedDigits
 >     a = V.sum $ V.zipWith (\expectedDigit input -> costFn expectedDigit input net)
@@ -482,6 +495,8 @@ we do not regularize the weights for the biases.
 >         map stripBias $
 >         extractWeights net
 >     stripBias xss = map (drop 1) xss
+>
+>     cost = (a + delta * b) / l
 
 > delTotalCostNN :: (Floating a, Ord a, Show a) =>
 >                   V.Vector Int ->
@@ -497,7 +512,8 @@ we do not regularize the weights for the biases.
 >                  V.Vector [Double] ->
 >                  BackpropNet Double ->
 >                  BackpropNet Double
-> stepOnceTotal gamma y x net =
+> stepOnceTotal gamma y x net = {- trace ("net = " ++ show (extractWeights net) ++ "\n" ++
+>                                      "del = " ++ show (extractWeights $ delTotalCostNN y x net)) $ -}
 >   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
 
 Example I
@@ -567,6 +583,53 @@ We can plot the populations we wish to distinguish by sampling.
 
     [ghci]
     test1
+
+Example II
+----------
+
+> c, d :: Double
+> c          = 15
+> d          = 8
+> sample2, sample3 :: [Double]
+> sample2 = betas nSamples c d
+> sample3 = betas nSamples d c
+
+> mixSamples' :: Num t => [[a]] -> [(t, a)]
+> mixSamples' xss = concat $ transpose $
+>                   zipWith (\n xs -> map (n,) xs)
+>                           (map fromIntegral [0..])
+>                           xss
+> sample02 = [(x, y) | x <- sample0, y <- sample2]
+> sample03 = [(x, y) | x <- sample0, y <- sample3]
+> sample12 = [(x, y) | x <- sample1, y <- sample2]
+> sample13 = [(x, y) | x <- sample1, y <- sample3]
+
+> createSample' :: forall t. Num t => V.Vector (t, (Double, Double))
+> createSample' = V.fromList $ take 255 {- 256 -} $ mixSamples' [ sample02
+>                                                     , sample03
+>                                                     , sample12
+>                                                     -- , sample13
+>                                                     ]
+
+> test2 :: IO ()
+> test2 = do
+>   let w1  = randomWeightMatrix 3 3
+>       w2  = randomWeightMatrix 4 3
+>       testNet = buildBackpropNet lRate [w1 {- , w2 -} ] (ActivationFunction logit)
+>   let us = V.map fst createSample'
+>   let vs = V.map ((\(x, y) -> [x, y]) . snd) createSample'
+>   putStrLn $ show $ totalCostNN (V.map round us) vs testNet
+>   putStrLn $ show $ extractWeights $ delTotalCostNN (V.map round us) vs testNet
+>   let fs = iterate (stepOnceTotal gamma us vs) testNet
+>       gs = drop 800 fs
+>       phi = extractWeights $ head gs
+>       ws  = map extractWeights $ take 10 gs
+>   mapM_ putStrLn $ map show $ map (totalCostNN (V.map round us) vs) $ take 20 $ drop 400 fs
+>   mapM_ putStrLn $ map show $ map extractWeights $ map (delTotalCostNN (V.map round us) vs) $ take 20 $ drop 400 fs
+>   putStrLn $ show $ evalNeuralNet (head gs) [0.1, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head gs) [0.1, 0.9]
+>   putStrLn $ show $ evalNeuralNet (head gs) [0.9, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head gs) [0.9, 0.9]
 
 Appendix
 --------
@@ -649,17 +712,18 @@ all the weights to 0 then the gradient descent algorithm might get stuck.
 >   (nRows, nCols, trainingImages) <- readImages "train-images-idx3-ubyte"
 >   trainingLabels                 <- readLabels "train-labels-idx1-ubyte"
 >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes
->       w2  = randomWeightMatrix nNodes nDigits
+>       w2  = randomWeightMatrix (nNodes + 1) nDigits
 >       testNet = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
 >   let us :: V.Vector Int
 >       us = V.take 10 $ V.fromList trainingLabels
 >       exponent = bitSize $ head $ iPixels $ head trainingImages
 >       normalizer = fromIntegral 2^exponent
 >   let vs :: V.Vector [Double]
->       vs = V.take 10 $ V.fromList $ map (map fromIntegral . iPixels) trainingImages
+>       vs = V.take 10 $ V.fromList $
+>            map (map ((/ normalizer) . fromIntegral) . iPixels) trainingImages
 >   let fs = iterate (stepOnceTotal gamma us vs) testNet
 >       phi = extractWeights $ head $ drop 1 fs
->   putStrLn $ show vs
+>   putStrLn $ show $ length (phi!!1)
 
 -- >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
 -- >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
