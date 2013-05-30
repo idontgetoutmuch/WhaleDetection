@@ -186,8 +186,6 @@ Some pragmas and imports required for the example code.
 > import Data.Binary.Get
 > import Text.Printf
 
-> import Debug.Trace
-
 Logistic Regression Redux
 -------------------------
 
@@ -438,8 +436,6 @@ We define a cost function.
 >     predicted = evalNeuralNet net input
 >     diffs = zipWith (-) ((targets nDigits)!!expectedDigit) predicted
 
-FIXME: This is screwed. Sometimes we want 2 digits and sometimes we want 10 and sometimes we want 4 or 3!
-
 > targets :: Floating a => Int -> [[a]]
 > targets nDigits = map row [0 .. nDigits - 1]
 >   where
@@ -581,128 +577,45 @@ We can plot the populations we wish to distinguish by sampling.
     [ghci]
     test1
 
-> initWeights = [[ [0.11, 0.12]
->                , [0.13, 0.14]],
->                [ [0.16, 0.26, 0.36]
->                , [0.15, 0.25, 0.35]]]
->
-> zeroWeights = [[ [0.0, 0.0]
->                , [0.0, 0.0]],
->                [ [0.0, 0.0, 0.0]
->                , [0.0, 0.0, 0.0]]]
->
-> halfWeights = [[ [0.5, 0.5]
->                , [0.5, 0.5]],
->                [ [0.5, 0.5, 0.5]
->                , [0.5, 0.5, 0.5]]]
->
-> initWeights2 = [[[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]]]
-> initNet2 = buildBackpropNet lRate initWeights2 (ActivationFunction logit)
->
-> initNet1 = buildBackpropNet lRate initWeights (ActivationFunction logit)
-> initNet0 = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
-> zeroNet1  = buildBackpropNet lRate zeroWeights (ActivationFunction logit)
-> halfNet1  = buildBackpropNet lRate halfWeights (ActivationFunction logit)
-> zeroNet0  = buildBackpropNet lRate [[[0.0, 0.0], [0.0, 0.0]]] (ActivationFunction logit)
-> pertNet0  = buildBackpropNet lRate [[[0.01, 0.01], [0.01, 0.01]]] (ActivationFunction logit)
-> finNet0  = buildBackpropNet lRate [[[0.9386722068140518,-1.8663293197367665],[-0.9391274048789908,1.8671015318352984]]] (ActivationFunction logit)
-> testNet0 = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
->
-> min100Net1 = (buildBackpropNet lRate (head $ drop 28 $ uniformWs 29) (ActivationFunction logit))
->
-> uniformWs :: Int -> [[[[Double]]]]
-> uniformWs n = map f $ chunksOf 10 foo
->   where
->   foo = fst $ runState (replicateM (10*n) (sampleRVar stdUniform)) (mkStdGen seed)
->   f xs = [[ [xs!!0, xs!!1]
->           , [xs!!2, xs!!3]],
->           [ [xs!!4, xs!!5, xs!!6]
->           , [xs!!7, xs!!8, xs!!9]]]
->   seed = 0
->
-> us = V.map (round . fst) createSample
-> vs = V.map snd createSample
+Example II
+----------
 
+> w1, w2 :: [[Double]]
+> w1  = randomWeightMatrix 2 2
+> w2  = randomWeightMatrix 3 2
+
+> initNet1 :: BackpropNet Double
+> initNet1 = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
+>
+> labels :: V.Vector Int
+> labels = V.map (round . fst) createSample
+
+FIXME: Mixing vectors and lists seems a bit naff
+
+> inputs :: V.Vector [Double]
+> inputs = V.map (return . snd) createSample
+
+> estimates :: (Floating a, Ord a, Show a) =>
+>              V.Vector Int ->
+>              V.Vector [a] ->
+>              BackpropNet a ->
+>              [BackpropNet a]
 > estimates y x = gradientDescent $
 >                 \theta -> totalCostNN 2 y (V.map (map auto) x) theta
-
-> foo =  take 200 $
->        map extractWeights $
->        estimates us (V.map return vs) $
->        initNet0
->
-> fooA =  take 200 $
->         map extractWeights $
->         estimates us (V.fromList bazs0) $
->         initNet2
-
-> bar =  take 400 $
->        map extractWeights $
->        estimates us (V.map return vs) $
->        initNet1
-> barA =  take 200 $
->         map extractWeights $
->         estimates us (V.map return vs) $
->         min100Net1
-> barB =  take 200 $
->         map extractWeights $
->         estimates us (V.map return vs) $
->         halfNet1
-
-
-> baz0 = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ initNet0) [0.9]
-> bazs0 = map (evalNeuralNet net) (V.toList $ V.map return vs)
->   where
->     net = head $ drop 200 $ estimates us (V.map return vs) $ initNet0
-> baz1 = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ initNet1) [0.9]
-> baz1A = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ min100Net1) [0.9]
-
-> minCost = minimum $ randCosts
-> randCosts = map (totalCostNN 2 us (V.map return vs)) $
->             map (\x -> buildBackpropNet lRate x (ActivationFunction logit)) $
->             uniformWs 100
 
 > test1a :: IO ()
 > test1a = do
 >
->   let testNet' = buildBackpropNet lRate [[ [0.11, 0.12]
->                                          , [0.13, 0.14]],
->                                          [[0.16, 0.26, 0.36]
->                                          ,[0.15, 0.25, 0.35]]] (ActivationFunction logit)
->   let guess = buildBackpropNet lRate [[ [0.939, -1.866]
->                                       , [-0.939, 1.866]],
->                                       [ [0.0, 1.0, 0.0]
->                                       , [0.0, 0.0, 1.0]]] (ActivationFunction logit)
->
->   let vals :: V.Vector (Double, V.Vector Double)
->       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
->
->   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
->       theta = head $ drop 1000 gs
->   -- printf "Logistic regression: theta_0 = %5.3f, theta_1 = %5.3f\n"
->   --        (theta V.! 0) (theta V.! 1)
->
->   putStrLn $ show $ totalCostNN 2 us (V.map return vs) guess
->   let fs = iterate (stepOnceTotal 2 gamma us (V.map return vs)) pertNet0 -- testNet0
->       phi = extractWeights $ head $ drop 1000 fs
->   putStrLn $ show phi
->   error "Stop here"
->   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
->          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
->   printf "Neural network: theta_10 = %5.3f, theta_11 = %5.3f\n"
->          (((phi!!0)!!1)!!0) (((phi!!0)!!1)!!1)
->   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.1]
->   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.9]
->   let fs' = iterate (stepOnceTotal 2 gamma us (V.map return vs)) testNet'
+>   let fs' = estimates labels inputs initNet1
 >   mapM_ putStrLn $ map show $ map extractWeights $ take 10 $ drop 20 fs'
->   mapM_ putStrLn $ map show $ map (totalCostNN 2 us (V.map return vs)) $ take 10 $ drop 20 fs'
->   --     phi' = extractWeights $ head $ drop 1000 fs'
->   -- putStrLn $ show phi'
->   -- putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.1]
->   -- Putstrln $ show $ evalNeuralNet (head $ drop 1000 fs') [0.9]
+>   mapM_ putStrLn $ map show $ map (totalCostNN 2 labels inputs) $ take 10 $ drop 20 fs'
+>   let phi' = extractWeights $ head $ drop 1000 fs'
+>   putStrLn $ show phi'
+>   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.1]
+>   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.9]
 
-Example II
-----------
+Example III
+-----------
 
 > c, d :: Double
 > c          = 15
@@ -716,13 +629,14 @@ Example II
 >                   zipWith (\n xs -> map (n,) xs)
 >                           (map fromIntegral [0..])
 >                           xss
+> sample02, sample03, sample12, sample13 :: [(Double, Double)]
 > sample02 = [(x, y) | x <- sample0, y <- sample2]
 > sample03 = [(x, y) | x <- sample0, y <- sample3]
 > sample12 = [(x, y) | x <- sample1, y <- sample2]
 > sample13 = [(x, y) | x <- sample1, y <- sample3]
 
 > createSample' :: forall t. Num t => V.Vector (t, (Double, Double))
-> createSample' = V.fromList $ take 256 $ mixSamples' [ sample02
+> createSample' = V.fromList $ take 512 $ mixSamples' [ sample02
 >                                                     , sample03
 >                                                     , sample12
 >                                                     , sample13
@@ -746,18 +660,16 @@ Example II
 >   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f1s!!1)
 >   putStrLn "Time step 1 cost 2"
 >   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f2s!!1)
->   error "Stop here"
 >   putStrLn "Diff 1"
 >   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f1s!!1)) - (totalCostNN 4 (V.map round us) vs (f1s!!0))
 >   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f2s!!1)) - (totalCostNN 4 (V.map round us) vs (f2s!!0))
 >   putStrLn "Cost 1s"
->   -- Lies
->   mapM_ putStrLn $ map show $ map (totalCostNN 2 (V.map round us) vs) $ take 10 $ drop 40 f1s
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 (V.map round us) vs) $ take 10 $ drop 40 f1s
 >   putStrLn "Cost 2s"
->   -- All lies
->   mapM_ putStrLn $ map show $ map (totalCostNN 2 (V.map round us) vs) $ take 10 $ drop 40 f2s
->   let g1s = drop 50 f1s
->       g2s = drop 50 f2s
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 (V.map round us) vs) $ take 10 $ drop 40 f2s
+>   let g1s = drop 500 f1s
+>       g2s = drop 500 f2s
+>   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g2s
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.9]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.9, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.9, 0.9]
