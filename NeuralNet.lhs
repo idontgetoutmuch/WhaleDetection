@@ -211,7 +211,7 @@ parameters do not grow too large. Note that we do not regularize over
 the bias.
 
 > delta :: Floating a => a
-> delta = 1.0
+> delta = 0.01
 
 > totalCost :: Floating a =>
 >              V.Vector a ->
@@ -584,21 +584,47 @@ We can plot the populations we wish to distinguish by sampling.
     [ghci]
     test1
 
-> modWeight delta ix xs = map (\(x, i) -> if i == ix then x + delta else x) (zip xs [0..])
-> modWeight' delta ix jx xss = map (\(xs, j) -> if j == jx then modWeight delta ix xs else xs) (zip xss [0..])
-> modWeight'' delta ix jx kx xsss = map (\(xss, k) -> if k == kx then modWeight' delta ix jx xss else xss) (zip xsss [0..])
->
 > initWeights = [[ [0.11, 0.12]
 >                , [0.13, 0.14]],
 >                [ [0.16, 0.26, 0.36]
 >                , [0.15, 0.25, 0.35]]]
 >
+> zeroWeights = [[ [0.0, 0.0]
+>                , [0.0, 0.0]],
+>                [ [0.0, 0.0, 0.0]
+>                , [0.0, 0.0, 0.0]]]
+>
+> halfWeights = [[ [0.5, 0.5]
+>                , [0.5, 0.5]],
+>                [ [0.5, 0.5, 0.5]
+>                , [0.5, 0.5, 0.5]]]
+>
+> initWeights2 = [[[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]]]
+> initNet2 = buildBackpropNet lRate initWeights2 (ActivationFunction logit)
+>
 > initNet1 = buildBackpropNet lRate initWeights (ActivationFunction logit)
 > initNet0 = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+> zeroNet1  = buildBackpropNet lRate zeroWeights (ActivationFunction logit)
+> halfNet1  = buildBackpropNet lRate halfWeights (ActivationFunction logit)
+> zeroNet0  = buildBackpropNet lRate [[[0.0, 0.0], [0.0, 0.0]]] (ActivationFunction logit)
+> pertNet0  = buildBackpropNet lRate [[[0.01, 0.01], [0.01, 0.01]]] (ActivationFunction logit)
+> finNet0  = buildBackpropNet lRate [[[0.9386722068140518,-1.8663293197367665],[-0.9391274048789908,1.8671015318352984]]] (ActivationFunction logit)
+> testNet0 = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+>
+> min100Net1 = (buildBackpropNet lRate (head $ drop 28 $ uniformWs 29) (ActivationFunction logit))
+>
+> uniformWs :: Int -> [[[[Double]]]]
+> uniformWs n = map f $ chunksOf 10 foo
+>   where
+>   foo = fst $ runState (replicateM (10*n) (sampleRVar stdUniform)) (mkStdGen seed)
+>   f xs = [[ [xs!!0, xs!!1]
+>           , [xs!!2, xs!!3]],
+>           [ [xs!!4, xs!!5, xs!!6]
+>           , [xs!!7, xs!!8, xs!!9]]]
+>   seed = 0
 >
 > us = V.map (round . fst) createSample
 > vs = V.map snd createSample
-
 
 > estimates y x = gradientDescent $
 >                 \theta -> totalCostNN y (V.map (map auto) x) theta
@@ -606,20 +632,42 @@ We can plot the populations we wish to distinguish by sampling.
 > foo =  take 200 $
 >        map extractWeights $
 >        estimates us (V.map return vs) $
->        buildBackpropNet lRate initWeights (ActivationFunction logit)
+>        initNet0
 >
+> fooA =  take 200 $
+>         map extractWeights $
+>         estimates us (V.fromList bazs0) $
+>         initNet2
+
 > bar =  take 200 $
 >        map extractWeights $
 >        estimates us (V.map return vs) $
 >        initNet1
+> barA =  take 200 $
+>         map extractWeights $
+>         estimates us (V.map return vs) $
+>         min100Net1
+> barB =  take 200 $
+>         map extractWeights $
+>         estimates us (V.map return vs) $
+>         halfNet1
+
 
 > baz0 = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ initNet0) [0.9]
+> bazs0 = map (evalNeuralNet net) (V.toList $ V.map return vs)
+>   where
+>     net = head $ drop 200 $ estimates us (V.map return vs) $ initNet0
 > baz1 = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ initNet1) [0.9]
+> baz1A = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ min100Net1) [0.9]
+
+> minCost = minimum $ randCosts
+> randCosts = map (totalCostNN us (V.map return vs)) $
+>             map (\x -> buildBackpropNet lRate x (ActivationFunction logit)) $
+>             uniformWs 100
 
 > test1a :: IO ()
 > test1a = do
 >
->   let testNet = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
 >   let testNet' = buildBackpropNet lRate [[ [0.11, 0.12]
 >                                          , [0.13, 0.14]],
 >                                          [[0.16, 0.26, 0.36]
@@ -638,9 +686,10 @@ We can plot the populations we wish to distinguish by sampling.
 >   --        (theta V.! 0) (theta V.! 1)
 >
 >   putStrLn $ show $ totalCostNN us (V.map return vs) guess
->   error "Stop here"
->   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet
+>   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) pertNet0 -- testNet0
 >       phi = extractWeights $ head $ drop 1000 fs
+>   putStrLn $ show phi
+>   error "Stop here"
 >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
 >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
 >   printf "Neural network: theta_10 = %5.3f, theta_11 = %5.3f\n"
@@ -653,7 +702,7 @@ We can plot the populations we wish to distinguish by sampling.
 >   --     phi' = extractWeights $ head $ drop 1000 fs'
 >   -- putStrLn $ show phi'
 >   -- putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.1]
->   -- putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.9]
+>   -- Putstrln $ show $ evalNeuralNet (head $ drop 1000 fs') [0.9]
 
 Example II
 ----------
