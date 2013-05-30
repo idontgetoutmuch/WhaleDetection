@@ -429,24 +429,23 @@ We define a cost function.
 
 > costFn :: (Floating a, Ord a, Show a) =>
 >           Int ->
+>           Int ->
 >           [a] ->
 >           BackpropNet a ->
 >           a
-> costFn expectedDigit input net = {- trace ("expected = " ++ show (targets!!expectedDigit) ++ "\n" ++
->                                         "predicted = " ++ show predicted) $ -}
->                                  0.5 * sum (map (^2) diffs)
+> costFn nDigits expectedDigit input net = 0.5 * sum (map (^2) diffs)
 >   where
 >     predicted = evalNeuralNet net input
->     diffs = zipWith (-) (targets!!expectedDigit) predicted
+>     diffs = zipWith (-) ((targets nDigits)!!expectedDigit) predicted
 
 FIXME: This is screwed. Sometimes we want 2 digits and sometimes we want 10 and sometimes we want 4 or 3!
 
-> targets :: Floating a => [[a]]
-> targets = map row [0 .. 2 {- nDigits -} - 1]
+> targets :: Floating a => Int -> [[a]]
+> targets nDigits = map row [0 .. nDigits - 1]
 >   where
 >     row m = concat [x, 1.0 : y]
 >       where
->         (x, y) = splitAt m (take (2 {- nDigits -} - 1) $ repeat 0.0)
+>         (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
 
 And the gradient of the cost function. Note that both the cost
 function and its gradient are parameterised over the inputs and the
@@ -459,7 +458,7 @@ output label.
 >                          BackpropNet a
 > delCostFn y x = grad f
 >   where
->     f theta = costFn y (map auto x) theta
+>     f theta = costFn 2 y (map auto x) theta
 
 Now we can implement (stochastic) gradient descent.
 
@@ -476,19 +475,15 @@ training set (rather than stochastically) then we can do so. Note that
 we do not regularize the weights for the biases.
 
 > totalCostNN :: (Floating a, Ord a, Show a) =>
+>                Int ->
 >                V.Vector Int ->
 >                V.Vector [a] ->
 >                BackpropNet a ->
 >                a
-> totalCostNN expectedDigits inputs net = {- trace ("cost = " ++ show cost ++ "\n" ++
->                                                "a = " ++ show a ++ "\n" ++
->                                                "b = " ++ show b ++ "\n" ++
->                                                "l = " ++ show l ++ "\n" {- ++
->                                                "expectedDigits = " ++ show expectedDigits -}) $ -}
->                                         cost
+> totalCostNN nDigits expectedDigits inputs net = cost
 >   where
 >     l = fromIntegral $ V.length expectedDigits
->     a = V.sum $ V.zipWith (\expectedDigit input -> costFn expectedDigit input net)
+>     a = V.sum $ V.zipWith (\expectedDigit input -> costFn nDigits expectedDigit input net)
 >                           expectedDigits inputs
 >     b = (/2) $ sum $ map (^2) $
 >         concat $ concat $
@@ -499,22 +494,24 @@ we do not regularize the weights for the biases.
 >     cost = (a + delta * b) / l
 
 > delTotalCostNN :: (Floating a, Ord a, Show a) =>
+>                   Int ->
 >                   V.Vector Int ->
 >                   V.Vector [a] ->
 >                   BackpropNet a ->
 >                   BackpropNet a
-> delTotalCostNN expectedDigits inputs = grad f
+> delTotalCostNN nDigits expectedDigits inputs = grad f
 >   where
->     f net = totalCostNN expectedDigits (V.map (map auto) inputs) net
+>     f net = totalCostNN nDigits expectedDigits (V.map (map auto) inputs) net
 
-> stepOnceTotal :: Double ->
+> stepOnceTotal :: Int ->
+>                  Double ->
 >                  V.Vector Int ->
 >                  V.Vector [Double] ->
 >                  BackpropNet Double ->
 >                  BackpropNet Double
-> stepOnceTotal gamma y x net = {- trace ("net = " ++ show (extractWeights net) ++ "\n" ++
+> stepOnceTotal nDigits gamma y x net = {- trace ("net = " ++ show (extractWeights net) ++ "\n" ++
 >                                      "del = " ++ show (extractWeights $ delTotalCostNN y x net)) $ -}
->   net + fmap (* (negate gamma)) (delTotalCostNN y x net)
+>   net + fmap (* (negate gamma)) (delTotalCostNN nDigits y x net)
 
 Example I
 ---------
@@ -574,7 +571,7 @@ We can plot the populations we wish to distinguish by sampling.
 >
 >   let us = V.map (round . fst) createSample
 >   let vs = V.map snd createSample
->   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet
+>   let fs = iterate (stepOnceTotal 2 gamma us (V.map return vs)) testNet
 >       phi = extractWeights $ head $ drop 1000 fs
 >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
 >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
@@ -627,7 +624,7 @@ We can plot the populations we wish to distinguish by sampling.
 > vs = V.map snd createSample
 
 > estimates y x = gradientDescent $
->                 \theta -> totalCostNN y (V.map (map auto) x) theta
+>                 \theta -> totalCostNN 2 y (V.map (map auto) x) theta
 
 > foo =  take 200 $
 >        map extractWeights $
@@ -639,7 +636,7 @@ We can plot the populations we wish to distinguish by sampling.
 >         estimates us (V.fromList bazs0) $
 >         initNet2
 
-> bar =  take 200 $
+> bar =  take 400 $
 >        map extractWeights $
 >        estimates us (V.map return vs) $
 >        initNet1
@@ -661,7 +658,7 @@ We can plot the populations we wish to distinguish by sampling.
 > baz1A = evalNeuralNet (head $ drop 200 $ estimates us (V.map return vs) $ min100Net1) [0.9]
 
 > minCost = minimum $ randCosts
-> randCosts = map (totalCostNN us (V.map return vs)) $
+> randCosts = map (totalCostNN 2 us (V.map return vs)) $
 >             map (\x -> buildBackpropNet lRate x (ActivationFunction logit)) $
 >             uniformWs 100
 
@@ -685,8 +682,8 @@ We can plot the populations we wish to distinguish by sampling.
 >   -- printf "Logistic regression: theta_0 = %5.3f, theta_1 = %5.3f\n"
 >   --        (theta V.! 0) (theta V.! 1)
 >
->   putStrLn $ show $ totalCostNN us (V.map return vs) guess
->   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) pertNet0 -- testNet0
+>   putStrLn $ show $ totalCostNN 2 us (V.map return vs) guess
+>   let fs = iterate (stepOnceTotal 2 gamma us (V.map return vs)) pertNet0 -- testNet0
 >       phi = extractWeights $ head $ drop 1000 fs
 >   putStrLn $ show phi
 >   error "Stop here"
@@ -696,9 +693,9 @@ We can plot the populations we wish to distinguish by sampling.
 >          (((phi!!0)!!1)!!0) (((phi!!0)!!1)!!1)
 >   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.1]
 >   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.9]
->   let fs' = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
+>   let fs' = iterate (stepOnceTotal 2 gamma us (V.map return vs)) testNet'
 >   mapM_ putStrLn $ map show $ map extractWeights $ take 10 $ drop 20 fs'
->   mapM_ putStrLn $ map show $ map (totalCostNN us (V.map return vs)) $ take 10 $ drop 20 fs'
+>   mapM_ putStrLn $ map show $ map (totalCostNN 2 us (V.map return vs)) $ take 10 $ drop 20 fs'
 >   --     phi' = extractWeights $ head $ drop 1000 fs'
 >   -- putStrLn $ show phi'
 >   -- putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs') [0.1]
@@ -725,37 +722,40 @@ Example II
 > sample13 = [(x, y) | x <- sample1, y <- sample3]
 
 > createSample' :: forall t. Num t => V.Vector (t, (Double, Double))
-> createSample' = V.fromList $ take 255 {- 256 -} $ mixSamples' [ sample02
+> createSample' = V.fromList $ take 256 $ mixSamples' [ sample02
 >                                                     , sample03
 >                                                     , sample12
->                                                     -- , sample13
+>                                                     , sample13
 >                                                     ]
 
 > test2 :: IO ()
 > test2 = do
->   let w1  = randomWeightMatrix 3 3
->       w2  = randomWeightMatrix 4 3
+>   let w1  = randomWeightMatrix 3 4
+>       w2  = randomWeightMatrix 5 4
 >       testNet1 = buildBackpropNet lRate [w1 {- , w2 -} ] (ActivationFunction logit)
 >       testNet2 = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
 >   let us = V.map fst createSample'
 >   let vs = V.map ((\(x, y) -> [x, y]) . snd) createSample'
 >   putStrLn "Time step 0 cost 1"
->   putStrLn $ show $ totalCostNN (V.map round us) vs testNet1
+>   putStrLn $ show $ totalCostNN 4 (V.map round us) vs testNet1
 >   putStrLn "Time step 0 cost 2"
->   putStrLn $ show $ totalCostNN (V.map round us) vs testNet2
->   let f1s = iterate (stepOnceTotal gamma us vs) testNet1
->       f2s = iterate (stepOnceTotal gamma us vs) testNet2
+>   putStrLn $ show $ totalCostNN 4 (V.map round us) vs testNet2
+>   let f1s = iterate (stepOnceTotal 4 gamma us vs) testNet1
+>       f2s = iterate (stepOnceTotal 4 gamma us vs) testNet2
 >   putStrLn "Time step 1 cost 1"
->   putStrLn $ show $ totalCostNN (V.map round us) vs (f1s!!1)
+>   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f1s!!1)
 >   putStrLn "Time step 1 cost 2"
->   putStrLn $ show $ totalCostNN (V.map round us) vs (f2s!!1)
+>   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f2s!!1)
+>   error "Stop here"
 >   putStrLn "Diff 1"
->   putStrLn $ show $ (totalCostNN (V.map round us) vs (f1s!!1)) - (totalCostNN (V.map round us) vs (f1s!!0))
->   putStrLn $ show $ (totalCostNN (V.map round us) vs (f2s!!1)) - (totalCostNN (V.map round us) vs (f2s!!0))
+>   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f1s!!1)) - (totalCostNN 4 (V.map round us) vs (f1s!!0))
+>   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f2s!!1)) - (totalCostNN 4 (V.map round us) vs (f2s!!0))
 >   putStrLn "Cost 1s"
->   mapM_ putStrLn $ map show $ map (totalCostNN (V.map round us) vs) $ take 10 $ drop 40 f1s
+>   -- Lies
+>   mapM_ putStrLn $ map show $ map (totalCostNN 2 (V.map round us) vs) $ take 10 $ drop 40 f1s
 >   putStrLn "Cost 2s"
->   mapM_ putStrLn $ map show $ map (totalCostNN (V.map round us) vs) $ take 10 $ drop 40 f2s
+>   -- All lies
+>   mapM_ putStrLn $ map show $ map (totalCostNN 2 (V.map round us) vs) $ take 10 $ drop 40 f2s
 >   let g1s = drop 50 f1s
 >       g2s = drop 50 f2s
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.9]
@@ -856,7 +856,7 @@ all the weights to 0 then the gradient descent algorithm might get stuck.
 >   let vs :: V.Vector [Double]
 >       vs = V.take 10 $ V.fromList $
 >            map (map ((/ normalizer) . fromIntegral) . iPixels) trainingImages
->   let fs = iterate (stepOnceTotal gamma us vs) testNet
+>   let fs = iterate (stepOnceTotal nDigits gamma us vs) testNet
 >       phi = extractWeights $ head $ drop 1 fs
 >   putStrLn $ show $ length (phi!!1)
 
