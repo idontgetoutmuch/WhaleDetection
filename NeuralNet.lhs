@@ -161,8 +161,7 @@ Some pragmas and imports required for the example code.
 > {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
 > module NeuralNet
->        ( main
->        , test1
+>        ( test1
 >        , test2
 >        , test3
 >        ) where
@@ -185,10 +184,6 @@ Some pragmas and imports required for the example code.
 > import Data.Random.Distribution.Uniform
 > import Data.RVar
 
-> import Data.Word
-> import Data.Bits
-> import qualified Data.ByteString.Lazy as BL
-> import Data.Binary.Get
 > import Text.Printf
 
 Logistic Regression Redux
@@ -569,6 +564,12 @@ Now let's try a neural net with 1 hidden layer using the data we prepared earlie
 We seed the weights in the neural with small random values; if we set
 all the weights to 0 then the gradient descent algorithm might get stuck.
 
+> uniforms :: Int -> [Double]
+> uniforms n =
+>   fst $ runState (replicateM n (sampleRVar stdUniform)) (mkStdGen seed)
+>     where
+>       seed = 0
+
 > randomWeightMatrix :: Int -> Int -> [[Double]]
 > randomWeightMatrix numInputs numOutputs = y
 >   where
@@ -671,7 +672,7 @@ from which we can converge to the global minimum.
 > inputs3 = V.map ((\(x, y) -> [x, y]) . snd) createSample3
 
 Now we use the library _gradientDescent_ function to generate neural
-net which ever better fit the data.
+nets which ever better fit the data.
 
 > estimates3 :: (Floating a, Ord a, Show a) =>
 >               V.Vector Int ->
@@ -692,122 +693,4 @@ some data.
 >   putStrLn $ show $ evalNeuralNet (head fs) [0.1, 0.9]
 >   putStrLn $ show $ evalNeuralNet (head fs) [0.9, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head fs) [0.9, 0.9]
-
-Hand-written Digit Recognition
-------------------------------
-
-Let's now try the archetypal example of handwritten digit recognition
-using the [MNIST database][MNIST]
-
-FIXME: We can probably get the number of rows and columns from the
-data itself.
-
-Our neural net configuration. We wish to classify images which are $28
-\times 28$ pixels into 10 digits using a single (hidden) layer neural
-net with 20 nodes.
-
-We (or rather the authors of the [MonadReader article][MonadReader])
-represent an image as a record; the pixels are represented using an
-8-bit grayscale.
-
-> data Image = Image {
->       _iRows    :: Int
->     , _iColumns :: Int
->     , iPixels   :: [Word8]
->     } deriving (Eq, Show)
-
-First we need some utilities to decode the data.
-
-> deserialiseHeader :: Get (Word32, Word32, Word32, Word32, [[Word8]])
-> deserialiseHeader = do
->   magicNumber <- getWord32be
->   imageCount <- getWord32be
->   r <- getWord32be
->   c <- getWord32be
->   packedData <- getRemainingLazyByteString
->   let len = fromIntegral (r * c)
->   let unpackedData = chunksOf len (BL.unpack packedData)
->   return (magicNumber, imageCount, r, c, unpackedData)
-
-> readImages :: FilePath -> IO (Int, Int, [Image])
-> readImages filename = do
->   content <- BL.readFile filename
->   let (_, _, r, c, unpackedData) = runGet deserialiseHeader content
->   return (fromIntegral r, fromIntegral c,
->           (map (Image (fromIntegral r) (fromIntegral c)) unpackedData))
-
-> deserialiseLabels :: Get (Word32, Word32, [Word8])
-> deserialiseLabels = do
->   magicNumber <- getWord32be
->   count <- getWord32be
->   labelData <- getRemainingLazyByteString
->   let labels = BL.unpack labelData
->   return (magicNumber, count, labels)
-
-> readLabels :: FilePath -> IO [Int]
-> readLabels filename = do
->   content <- BL.readFile filename
->   let (_, _, labels) = runGet deserialiseLabels content
->   return (map fromIntegral labels)
-
-> uniforms :: Int -> [Double]
-> uniforms n =
->   fst $ runState (replicateM n (sampleRVar stdUniform)) (mkStdGen seed)
->     where
->       seed = 0
-
-> nDigits, nNodes :: Int
-> nDigits = 10
-> nNodes  = 20
-
-> estimates4 :: (Floating a, Ord a, Show a) =>
->               V.Vector Int ->
->               V.Vector [a] ->
->               BackpropNet a ->
->               [BackpropNet a]
-> estimates4 y x = gradientDescent $
->                  \theta -> totalCostNN nDigits y (V.map (map auto) x) theta
->
-> stochEstimate :: (Floating a, Ord a, Show a) =>
->                   (Int, [a]) ->
->                   BackpropNet a ->
->                   BackpropNet a
-> stochEstimate (y, x) net = (estimates4 (V.singleton y) (V.singleton x) net)!!1
->
-> stochEstimates :: (Floating a, Ord a, Show a) =>
->                   V.Vector Int ->
->                   V.Vector [a] ->
->                   BackpropNet a ->
->                   BackpropNet a
-> stochEstimates y x net = V.foldl' (flip stochEstimate) net (V.zip y x)
-
-> nSampleDigits:: Int
-> nSampleDigits = 100
-
-> main :: IO ()
-> main = do
->   (nRows, nCols, trainingImages) <- readImages "train-images-idx3-ubyte"
->   trainingLabels                 <- readLabels "train-labels-idx1-ubyte"
->   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes
->       w2  = randomWeightMatrix (nNodes + 1) nDigits
->       testNet = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
->
->   putStrLn $ show $ length trainingImages
->
->   let exponent = bitSize $ head $ iPixels $ head trainingImages
->       normalizer = fromIntegral 2^exponent
->
->   let us :: V.Vector Int
->       us = V.fromList trainingLabels
->       vs :: V.Vector [Double]
->       vs = V.fromList $
->            map (map ((/ normalizer) . fromIntegral) . iPixels) trainingImages
->
->   let newNet :: BackpropNet Double
->       newNet = stochEstimates (V.take nSampleDigits us) (V.take nSampleDigits vs) testNet
->       psi = totalCostNN nDigits (V.take nSampleDigits us) (V.take nSampleDigits vs) newNet
->   putStrLn $ show $ psi
->   putStrLn $ show $ extractWeights newNet
-
-
 
