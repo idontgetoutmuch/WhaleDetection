@@ -686,8 +686,19 @@ Example III
 > f3s = iterate (stepOnceTotal 4 gamma labels2 (V.fromList dummyValues)) testNet23
 > dummyNN2 = head $ drop 500 f3s
 >
+> f4s :: [BackpropNet Double]
 > f4s = iterate (stepOnceTotal 4 gamma labels2 values2) testNet24
 >
+> f4as = estimates2 labels2 values2 testNet24
+>
+> estimates2 :: (Floating a, Ord a, Show a) =>
+>               V.Vector Int ->
+>               V.Vector [a] ->
+>               BackpropNet a ->
+>               [BackpropNet a]
+> estimates2 y x = gradientDescent $
+>                  \theta -> totalCostNN 4 y (V.map (map auto) x) theta
+
 > test2 :: IO ()
 > test2 = do
 >   putStrLn "Time step 0 cost 1"
@@ -711,14 +722,18 @@ Example III
 >   let g1s = drop 500 f1s
 >       g2s = drop 500 f2s
 >       g4s = drop 500 f4s
+>       g4as = drop 500 $ f4as
 >   putStrLn "Cost 1s"
 >   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g1s
 >   putStrLn "Cost 2s"
 >   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g2s
 >   putStrLn "Cost 4s"
 >   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g4s
+>   putStrLn "Cost 4as"
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g4as
 >   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g2s
 >   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g4s
+>   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g4as
 
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.9]
@@ -732,6 +747,12 @@ Example III
 >   putStrLn $ show $ evalNeuralNet (head g4s) [0.1, 0.9]
 >   putStrLn $ show $ evalNeuralNet (head g4s) [0.9, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g4s) [0.9, 0.9]
+>   putStrLn $ show $ evalNeuralNet (head g4as) [0.1, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head g4as) [0.1, 0.9]
+>   putStrLn $ show $ evalNeuralNet (head g4as) [0.9, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head g4as) [0.9, 0.9]
+
+
 
 Appendix
 --------
