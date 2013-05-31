@@ -160,7 +160,12 @@ Some pragmas and imports required for the example code.
 > {-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
 > {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 
-> module NeuralNet where
+> module NeuralNet
+>        ( main
+>        , test1
+>        , test2
+>        , test3
+>        ) where
 
 > import Numeric.AD
 > import Numeric.AD.Types
@@ -440,29 +445,6 @@ We define a cost function.
 >       where
 >         (x, y) = splitAt m (take (nDigits - 1) $ repeat 0.0)
 
-And the gradient of the cost function. Note that both the cost
-function and its gradient are parameterised over the inputs and the
-output label.
-
-> delCostFn :: (Ord a, Floating a, Show a) =>
->                          Int ->
->                          [a] ->
->                          BackpropNet a ->
->                          BackpropNet a
-> delCostFn y x = grad f
->   where
->     f theta = costFn 2 y (map auto x) theta
-
-Now we can implement (stochastic) gradient descent.
-
-> stepOnce :: Double ->
->             Int ->
->             [Double] ->
->             BackpropNet Double ->
->             BackpropNet Double
-> stepOnce gamma y x net =
->   net + fmap (* (negate gamma)) (delCostFn y x net)
-
 If instead we would rather perform gradient descent over the whole
 training set (rather than stochastically) then we can do so. Note that
 we do not regularize the weights for the biases.
@@ -583,6 +565,15 @@ Example II
 ----------
 
 Now let's try a neural net with 1 hidden layer using the data we prepared earlier.
+
+We seed the weights in the neural with small random values; if we set
+all the weights to 0 then the gradient descent algorithm might get stuck.
+
+> randomWeightMatrix :: Int -> Int -> [[Double]]
+> randomWeightMatrix numInputs numOutputs = y
+>   where
+>     y = chunksOf numInputs weights
+>     weights = map (/ 100.0) $ uniforms (numOutputs * numInputs)
 
 > w1, w2 :: [[Double]]
 > w1  = randomWeightMatrix 2 2
@@ -720,9 +711,9 @@ represent an image as a record; the pixels are represented using an
 8-bit grayscale.
 
 > data Image = Image {
->       iRows    :: Int
->     , iColumns :: Int
->     , iPixels  :: [Word8]
+>       _iRows    :: Int
+>     , _iColumns :: Int
+>     , iPixels   :: [Word8]
 >     } deriving (Eq, Show)
 
 First we need some utilities to decode the data.
@@ -765,18 +756,33 @@ First we need some utilities to decode the data.
 >     where
 >       seed = 0
 
-We seed the weights in the neural with small random values; if we set
-all the weights to 0 then the gradient descent algorithm might get stuck.
-
-> randomWeightMatrix :: Int -> Int -> [[Double]]
-> randomWeightMatrix numInputs numOutputs = y
->   where
->     y = chunksOf numInputs weights
->     weights = map (/ 100.0) $ uniforms (numOutputs * numInputs)
-
 > nDigits, nNodes :: Int
 > nDigits = 10
 > nNodes  = 20
+
+> estimates4 :: (Floating a, Ord a, Show a) =>
+>               V.Vector Int ->
+>               V.Vector [a] ->
+>               BackpropNet a ->
+>               [BackpropNet a]
+> estimates4 y x = gradientDescent $
+>                  \theta -> totalCostNN nDigits y (V.map (map auto) x) theta
+>
+> stochEstimate :: (Floating a, Ord a, Show a) =>
+>                   (Int, [a]) ->
+>                   BackpropNet a ->
+>                   BackpropNet a
+> stochEstimate (y, x) net = (estimates4 (V.singleton y) (V.singleton x) net)!!1
+>
+> stochEstimates :: (Floating a, Ord a, Show a) =>
+>                   V.Vector Int ->
+>                   V.Vector [a] ->
+>                   BackpropNet a ->
+>                   BackpropNet a
+> stochEstimates y x net = V.foldl' (flip stochEstimate) net (V.zip y x)
+
+> nSampleDigits:: Int
+> nSampleDigits = 100
 
 > main :: IO ()
 > main = do
@@ -785,140 +791,23 @@ all the weights to 0 then the gradient descent algorithm might get stuck.
 >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes
 >       w2  = randomWeightMatrix (nNodes + 1) nDigits
 >       testNet = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
->   let us :: V.Vector Int
->       us = V.take 10 $ V.fromList trainingLabels
->       exponent = bitSize $ head $ iPixels $ head trainingImages
+>
+>   putStrLn $ show $ length trainingImages
+>
+>   let exponent = bitSize $ head $ iPixels $ head trainingImages
 >       normalizer = fromIntegral 2^exponent
->   let vs :: V.Vector [Double]
->       vs = V.take 10 $ V.fromList $
+>
+>   let us :: V.Vector Int
+>       us = V.fromList trainingLabels
+>       vs :: V.Vector [Double]
+>       vs = V.fromList $
 >            map (map ((/ normalizer) . fromIntegral) . iPixels) trainingImages
->   let fs = iterate (stepOnceTotal nDigits gamma us vs) testNet
->       phi = extractWeights $ head $ drop 1 fs
->   putStrLn $ show $ length (phi!!1)
+>
+>   let newNet :: BackpropNet Double
+>       newNet = stochEstimates (V.take nSampleDigits us) (V.take nSampleDigits vs) testNet
+>       psi = totalCostNN nDigits (V.take nSampleDigits us) (V.take nSampleDigits vs) newNet
+>   putStrLn $ show $ psi
+>   putStrLn $ show $ extractWeights newNet
 
--- >   printf "Neural network: theta_00 = %5.3f, theta_01 = %5.3f\n"
--- >          (((phi!!0)!!0)!!0) (((phi!!0)!!0)!!1)
--- >   printf "Neural network: theta_10 = %5.3f, theta_11 = %5.3f\n"
--- >          (((phi!!0)!!1)!!0) (((phi!!0)!!1)!!1)
-
-
-
-We initialise our algorithm with arbitrary values.
-
-
-
--- > main :: IO ()
--- > main = do
--- >   let w1  = randomWeightMatrix (nRows * nCols + 1) nNodes 7
--- >       w2  = randomWeightMatrix nNodes nDigits 42
--- >       w1' :: (Random a, Floating a) => [[a]]
--- >       w1' = randomWeightMatrix' (nRows * nCols + 1) nNodes 7
--- >       w2' :: (Random a, Floating a) => [[a]]
--- >       w2' = randomWeightMatrix' nNodes nDigits 42
--- >       initialNet  = buildBackpropNetOld  lRate [w1, w2] tanhAS
--- >       testNet = buildBackpropNet lRate [[[0.1, 0.1]]] (ActivationFunction logit)
--- >       testNet' = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
--- >
--- >   trainingData <- fmap (take 8000) readTrainingData
--- >
--- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
--- >   trainingImages <- readImages "train-images-idx3-ubyte"
--- >
--- >   let trainingData' :: RealFrac a => [LabelledImage a]
--- >       trainingData' = zip (map normalisedData' trainingImages) trainingLabels
--- >
--- >       u = round $ fst $ V.head createSample
--- >       v = snd $ V.head createSample
--- >       us = V.map round ws
--- >       vs = V.map snd createSample
--- >       ws = V.map fst createSample
--- >       xs = V.map (V.cons 1.0 . V.singleton) ws
-
--- >   let vals :: V.Vector (Double, V.Vector Double)
--- >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
--- >
--- >   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
--- >   printf "Working grad desc: %s\n" $ show $ take 10 $ drop 1000 gs
--- >
--- >   let fs = iterate (stepOnceTotal gamma us (V.map return vs)) testNet'
--- >   printf "Working grad desc: %s\n" $ show $ map extractWeights $ take 10 $ drop 1000 fs
--- >
--- >   error "Finished"
-
-
-
-
-A labelled image contains the image and what this image actually
-represents e.g. the image of the numeral 9 could and should be
-represented by the value 9.
-
--- > type LabelledImage a = ([a], Int)
--- >
--- > -- | Inputs, outputs and targets are represented as column vectors instead of lists
--- > type ColumnVector a = Matrix a
--- >
--- >  -- | Convert a column vector to a list
--- > columnVectorToList :: (Ord a, Field a)
--- >     -- | The column vector to convert
--- >     => ColumnVector a
--- >     -- | The resulting list
--- >     -> [a]
--- > columnVectorToList = toList . flatten
--- >
--- > -- | Convert a list to a column vector
--- > listToColumnVector :: (Ord a, Field a)
--- >     -- | the list to convert
--- >     => [a]
--- >     -- | the resulting column vector
--- >     -> ColumnVector a
--- > listToColumnVector x = (len >< 1) x
--- >     where len = length x
-
--- > tanhAS :: ActivationFunction
--- > tanhAS = ActivationFunction
--- >     {
--- >       activationFunction = tanh
--- >     }
-
-FIXME: This looks a bit yuk
-
--- > isMatch :: (Eq a) => a -> a -> Int
--- > isMatch x y =
--- >   if x == y
--- >   then 1
--- >   else 0
-
--- > interpret :: [Double] -> Int
--- > interpret v = fromJust (elemIndex (maximum v) v)
-
--- > readTrainingData ::  Floating a => IO [LabelledImage a]
--- > readTrainingData = do
--- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
--- >   trainingImages <- readImages "train-images-idx3-ubyte"
--- >   return $ zip (map normalisedData trainingImages) trainingLabels
-
--- > readTrainingData' ::  RealFrac a => IO [LabelledImage a]
--- > readTrainingData' = do
--- >   trainingLabels <- readLabels "train-labels-idx1-ubyte"
--- >   trainingImages <- readImages "train-images-idx3-ubyte"
--- >   return $ zip (map normalisedData' trainingImages) trainingLabels
-
--- > readTestData :: Floating a => IO [LabelledImage a]
--- > readTestData = do
--- >   putStrLn "Reading test labels..."
--- >   testLabels <- readLabels "t10k-labels-idx1-ubyte"
--- >   testImages <- readImages "t10k-images-idx3-ubyte"
--- >   return (zip (map normalisedData testImages) testLabels)
-
--- > normalisedData :: Floating a => Image -> [a]
--- > normalisedData image = map normalisePixel (iPixels image)
--- >   where
--- >     normalisePixel :: Floating a => Word8 -> a
--- >     normalisePixel p = (fromIntegral p) / 255.0
-
--- > normalisedData' :: RealFrac a => Image -> [a]
--- > normalisedData' image = map normalisePixel (iPixels image)
--- >   where
--- >     normalisePixel p = (fromIntegral p) / 255.0
 
 
