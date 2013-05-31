@@ -478,16 +478,22 @@ we do not regularize the weights for the biases.
 >                a
 > totalCostNN nDigits expectedDigits inputs net = cost
 >   where
+>     cost = (a + delta * b) / l
+>
 >     l = fromIntegral $ V.length expectedDigits
+>
 >     a = V.sum $ V.zipWith (\expectedDigit input -> costFn nDigits expectedDigit input net)
 >                           expectedDigits inputs
->     b = (/2) $ sum $ map (^2) $
->         concat $ concat $
->         map stripBias $
->         extractWeights net
->     stripBias xss = map (drop 1) xss
 >
->     cost = (a + delta * b) / l
+>     b = (/(2 * m)) $ sum $ map (^2) ws
+>
+>     m = fromIntegral $ length ws
+>
+>     ws = concat $ concat $
+>          map stripBias $
+>          extractWeights net
+>
+>     stripBias xss = map (drop 1) xss
 
 > delTotalCostNN :: (Floating a, Ord a, Show a) =>
 >                   Int ->
@@ -642,34 +648,79 @@ Example III
 >                                                     , sample13
 >                                                     ]
 
+> w21, w22 :: [[Double]]
+> w21  = randomWeightMatrix 3 4
+> w22  = randomWeightMatrix 5 4
+>
+> w21a = [[-1.795626449637491,1.0687662199549477,0.6780994566671094],
+>         [-0.8953174631646047,1.536931540024011,-1.7631220370122578],
+>         [-0.4762453998497917,-2.005243268058972,1.2945899127545906],
+>         [0.43019763097582875,-1.5711869072989957,-1.187180183656747]]
+> w22a = [[-0.65116209142284,0.4837310591797774,-0.17870333721054968,
+>          -0.6692619856605464,-1.062292154441557],
+>         [-0.7521274440366631,-1.2071835415415136e-2,1.0078929981538551,
+>          -1.3144243587577473,-0.5102027925579049],
+>         [-0.7545728756863981,-0.4830112128458844,-1.2901624541811962,
+>          1.0487049495446408,9.746209726152217e-3],
+>         [-0.8576212271328413,-0.9035219951783956,-0.4034500456652809,
+>          0.10091187689838758,0.781835908789879]]
+>
+> testNet21, testNet22 :: BackpropNet Double
+> testNet21 = buildBackpropNet lRate [w21 {- , w2 -} ] (ActivationFunction logit)
+> testNet22 = buildBackpropNet lRate [w21, w22] (ActivationFunction logit)
+> testNet23 = buildBackpropNet lRate [w22] (ActivationFunction logit)
+> testNet24 = buildBackpropNet lRate [w21a, w22a] (ActivationFunction logit)
+
+> labels2 :: V.Vector Int
+> labels2 = V.map (round . fst) createSample'
+> values2 :: V.Vector [Double]
+> values2 = V.map ((\(x, y) -> [x, y]) . snd) createSample'
+
+> f1s, f2s :: [BackpropNet Double]
+> f1s = iterate (stepOnceTotal 4 gamma labels2 values2) testNet21
+> f2s = iterate (stepOnceTotal 4 gamma labels2 values2) testNet22
+>
+> dummyNN1 = head $ drop 500 f1s
+> dummyValues = map (evalNeuralNet dummyNN1) (V.toList values2)
+>
+> f3s = iterate (stepOnceTotal 4 gamma labels2 (V.fromList dummyValues)) testNet23
+> dummyNN2 = head $ drop 500 f3s
+>
+> f4s = iterate (stepOnceTotal 4 gamma labels2 values2) testNet24
+>
 > test2 :: IO ()
 > test2 = do
->   let w1  = randomWeightMatrix 3 4
->       w2  = randomWeightMatrix 5 4
->       testNet1 = buildBackpropNet lRate [w1 {- , w2 -} ] (ActivationFunction logit)
->       testNet2 = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
->   let us = V.map fst createSample'
->   let vs = V.map ((\(x, y) -> [x, y]) . snd) createSample'
 >   putStrLn "Time step 0 cost 1"
->   putStrLn $ show $ totalCostNN 4 (V.map round us) vs testNet1
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 testNet21
 >   putStrLn "Time step 0 cost 2"
->   putStrLn $ show $ totalCostNN 4 (V.map round us) vs testNet2
->   let f1s = iterate (stepOnceTotal 4 gamma us vs) testNet1
->       f2s = iterate (stepOnceTotal 4 gamma us vs) testNet2
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 testNet22
+>   putStrLn "Time step 0 cost 4"
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 testNet24
 >   putStrLn "Time step 1 cost 1"
->   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f1s!!1)
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 (f1s!!1)
 >   putStrLn "Time step 1 cost 2"
->   putStrLn $ show $ totalCostNN 4 (V.map round us) vs (f2s!!1)
->   putStrLn "Diff 1"
->   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f1s!!1)) - (totalCostNN 4 (V.map round us) vs (f1s!!0))
->   putStrLn $ show $ (totalCostNN 4 (V.map round us) vs (f2s!!1)) - (totalCostNN 4 (V.map round us) vs (f2s!!0))
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 (f2s!!1)
+>   putStrLn "Time step 1 cost 4"
+>   putStrLn $ show $ totalCostNN 4 labels2 values2 (f4s!!1)
 >   putStrLn "Cost 1s"
->   mapM_ putStrLn $ map show $ map (totalCostNN 4 (V.map round us) vs) $ take 10 $ drop 40 f1s
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ drop 40 f1s
 >   putStrLn "Cost 2s"
->   mapM_ putStrLn $ map show $ map (totalCostNN 4 (V.map round us) vs) $ take 10 $ drop 40 f2s
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ drop 40 f2s
+>   putStrLn "Cost 4s"
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ drop 40 f4s
 >   let g1s = drop 500 f1s
 >       g2s = drop 500 f2s
+>       g4s = drop 500 f4s
+>   putStrLn "Cost 1s"
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g1s
+>   putStrLn "Cost 2s"
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g2s
+>   putStrLn "Cost 4s"
+>   mapM_ putStrLn $ map show $ map (totalCostNN 4 labels2 values2) $ take 10 $ g4s
 >   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g2s
+>   mapM_ putStrLn $ map show $ map extractWeights $ take 2 g4s
+
+>   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.1, 0.9]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.9, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g1s) [0.9, 0.9]
@@ -677,6 +728,10 @@ Example III
 >   putStrLn $ show $ evalNeuralNet (head g2s) [0.1, 0.9]
 >   putStrLn $ show $ evalNeuralNet (head g2s) [0.9, 0.1]
 >   putStrLn $ show $ evalNeuralNet (head g2s) [0.9, 0.9]
+>   putStrLn $ show $ evalNeuralNet (head g4s) [0.1, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head g4s) [0.1, 0.9]
+>   putStrLn $ show $ evalNeuralNet (head g4s) [0.9, 0.1]
+>   putStrLn $ show $ evalNeuralNet (head g4s) [0.9, 0.9]
 
 Appendix
 --------
