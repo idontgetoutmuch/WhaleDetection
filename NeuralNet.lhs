@@ -203,6 +203,7 @@ Instead of maximimizing the log likelihood, we will minimize a cost function.
 > logit :: Floating a =>
 >          a -> a
 > logit x = 1 / (1 + exp (negate x))
+>
 
 We add a regularization term into the total cost so that the
 parameters do not grow too large. Note that we do not regularize over
@@ -322,9 +323,12 @@ able to add such structures together point-wise.
 >   (+) = addLayer
 >
 > addLayer :: Num a => Layer a -> Layer a -> Layer a
-> addLayer x y = Layer { layerWeights  = zipWith (zipWith (+)) (layerWeights x) (layerWeights y)
->                       , layerFunction = layerFunction x
->                       }
+> addLayer x y =
+>   Layer { layerWeights  = zipWith (zipWith (+))
+>                                   (layerWeights x)
+>                                   (layerWeights y)
+>         , layerFunction = layerFunction x
+>         }
 
 > instance Num a => Num (BackpropNet a) where
 >   (+) = addBPN
@@ -372,17 +376,22 @@ borrowed assumes that the inputs are images which are $m \times m$
 pixels each encoded using a grayscale, hence the references to bits
 and the check that values lie in the range $0 \leq x \leq 1$.
 
-> propagateNet :: (Floating a, Ord a, Show a) => [a] -> BackpropNet a -> [PropagatedLayer a]
+> propagateNet :: (Floating a, Ord a, Show a) =>
+>                 [a] ->
+>                 BackpropNet a ->
+>                 [PropagatedLayer a]
 > propagateNet input net = tail calcs
 >   where calcs = scanl propagate layer0 (layers net)
 >         layer0 = PropagatedSensorLayer $ validateInput net input
 >
->         validateInput net = validateInputValues . validateInputDimensions net
+>         validateInput net = validateInputValues .
+>                             validateInputDimensions net
 >
 >         validateInputDimensions net input =
 >           if got == expected
 >           then input
->           else error ("Input pattern has " ++ show got ++ " bits, but " ++
+>           else error ("Input pattern has " ++ show got ++
+>                       " bits, but " ++
 >                       show expected ++ " were expected")
 >           where got      = length input
 >                 expected = (+(negate 1)) $
@@ -399,7 +408,10 @@ and the check that values lie in the range $0 \leq x \leq 1$.
 
 Note that we add a 1 to the inputs to each layer to give the bias.
 
-> propagate :: (Floating a, Show a) => PropagatedLayer a -> Layer a -> PropagatedLayer a
+> propagate :: (Floating a, Show a) =>
+>              PropagatedLayer a ->
+>              Layer a ->
+>              PropagatedLayer a
 > propagate layerJ layerK = result
 >   where
 >     result =
@@ -416,7 +428,8 @@ Note that we add a 1 to the inputs to each layer to give the bias.
 >     f :: Floating a => a -> a
 >     f = activationFunction $ layerFunction layerK
 
-> evalNeuralNet :: (Floating a, Ord a, Show a) => BackpropNet a -> [a] -> [a]
+> evalNeuralNet :: (Floating a, Ord a, Show a) =>
+>                  BackpropNet a -> [a] -> [a]
 > evalNeuralNet net input = propLayerOut $ last calcs
 >   where calcs = propagateNet input net
 
@@ -456,7 +469,8 @@ we do not regularize the weights for the biases.
 >
 >     l = fromIntegral $ V.length expectedDigits
 >
->     a = V.sum $ V.zipWith (\expectedDigit input -> costFn nDigits expectedDigit input net)
+>     a = V.sum $ V.zipWith (\expectedDigit input ->
+>                             costFn nDigits expectedDigit input net)
 >                           expectedDigits inputs
 >
 >     b = (/(2 * m)) $ sum $ map (^2) ws
@@ -477,7 +491,8 @@ we do not regularize the weights for the biases.
 >                   BackpropNet a
 > delTotalCostNN nDigits expectedDigits inputs = grad f
 >   where
->     f net = totalCostNN nDigits expectedDigits (V.map (map auto) inputs) net
+>     f net = totalCostNN nDigits expectedDigits
+>                         (V.map (map auto) inputs) net
 
 > stepOnceTotal :: Int ->
 >                  Double ->
@@ -531,15 +546,19 @@ We can plot the populations we wish to distinguish by sampling.
 > initTheta :: V.Vector Double
 > initTheta = V.replicate (V.length actualTheta) 0.1
 
+> logitAF :: ActivationFunction
+> logitAF = ActivationFunction logit
+
 > test1 :: IO ()
 > test1 = do
 >
->   let testNet = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] (ActivationFunction logit)
+>   let testNet = buildBackpropNet lRate [[[0.1, 0.1], [0.1, 0.1]]] logitAF
 
 >   let vals :: V.Vector (Double, V.Vector Double)
 >       vals = V.map (\(y, x) -> (y, V.fromList [1.0, x])) $ createSample
 >
->   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals)) initTheta
+>   let gs = iterate (stepOnceCost gamma (V.map fst vals) (V.map snd vals))
+>                    initTheta
 >       theta = head $ drop 1000 gs
 >   printf "Logistic regression: theta_0 = %5.3f, theta_1 = %5.3f\n"
 >          (theta V.! 0) (theta V.! 1)
@@ -581,7 +600,7 @@ all the weights to 0 then the gradient descent algorithm might get stuck.
 > w2  = randomWeightMatrix 3 2
 
 > initNet2 :: BackpropNet Double
-> initNet2 = buildBackpropNet lRate [w1, w2] (ActivationFunction logit)
+> initNet2 = buildBackpropNet lRate [w1, w2] logitAF
 >
 > labels :: V.Vector Int
 > labels = V.map (round . fst) createSample
@@ -607,9 +626,14 @@ to some test data.
 > test2 = do
 >
 >   let fs = estimates labels inputs initNet2
->   putStrLn $ show $ extractWeights $ head $ drop 1000 fs
+>   mapM_ putStrLn $ map (take 60) $
+>                    map show $ extractWeights $
+>                    head $ drop 1000 fs
 >   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.1]
 >   putStrLn $ show $ evalNeuralNet (head $ drop 1000 fs) [0.9]
+
+    [ghci]
+    test2
 
 Example III
 -----------
@@ -664,7 +688,7 @@ from which we can converge to the global minimum.
 >         0.10091187689838758,0.781835908789879]]
 >
 > testNet3 :: BackpropNet Double
-> testNet3 = buildBackpropNet lRate [w31, w32] (ActivationFunction logit)
+> testNet3 = buildBackpropNet lRate [w31, w32] logitAF
 
 > labels3 :: V.Vector Int
 > labels3 = V.map (round . fst) createSample3
@@ -688,9 +712,14 @@ some data.
 > test3 :: IO ()
 > test3 = do
 >   let fs = drop 100 $ estimates3 labels3 inputs3 testNet3
->   putStrLn $ show $ extractWeights $ head fs
->   putStrLn $ show $ evalNeuralNet (head fs) [0.1, 0.1]
->   putStrLn $ show $ evalNeuralNet (head fs) [0.1, 0.9]
->   putStrLn $ show $ evalNeuralNet (head fs) [0.9, 0.1]
->   putStrLn $ show $ evalNeuralNet (head fs) [0.9, 0.9]
+>   mapM_ putStrLn $ map (take 60) $ map show $ extractWeights $ head fs
+>   putStrLn $ take 60 $ show $ evalNeuralNet (head fs) [0.1, 0.1]
+>   putStrLn $ take 60 $ show $ evalNeuralNet (head fs) [0.1, 0.9]
+>   putStrLn $ take 60 $ show $ evalNeuralNet (head fs) [0.9, 0.1]
+>   putStrLn $ take 60 $ show $ evalNeuralNet (head fs) [0.9, 0.9]
 
+    [ghci]
+    test3
+
+References
+----------
