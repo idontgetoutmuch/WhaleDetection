@@ -1,9 +1,36 @@
-% The Precession of the Perihelion of Mercury via Legendre Polynomials
+% Backpropogate is Just Steepest Descent with Automatic Differentiation
 % Dominic Steinitz
-% 25th August 2013
+% 20th September 2013
 
 Introduction
 ------------
+
+We consider multi-layer perceptrons and use the term neural network
+interchangeably. In summary we have a parameterised non-linear model,
+a cost function and some training data and we wish to estimate the
+parameters from the training data so as to minimize the total cost
+
+$$
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
+$$
+
+where $\boldsymbol{w}$ is the vector of parameters in the model,
+$\boldsymbol{x}$ are the inputes, $boldsymbol{y}$ are the outputs and
+$\hat{\boldsymbol{y}}$ are outputs predicted by our model. For now the
+exact form of the model is not important.
+
+In order to find the parameters that minimize the loss function we use
+steepest (aka gradient) descent: we calculate the derivative of the
+loss function and then step a small way in the direction that reduces
+the cost the most. The fact that we are minimizing non-linear function
+means that we may end up at a local minimum but that is just a fact of
+life and we do not consider this here any further. So all we need is
+the derivative of our cost function.
+
+Let us consider some techniques for doing this.
+
+Symbolic Differentiation
+------------------------
 
 Suppose we have the following program (written in Python)
 
@@ -36,6 +63,23 @@ f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
       &\phantom{=} \cos(\sin(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+x)
 \end{aligned}
 $$
+
+Typically the non-linear function in a neural network is much more
+complex than the simple function given above. Thus its derivative will
+correspondingly more complex and therefore expensive to
+compute. Moreover calculating this derivative by hand could easily
+introduce errors. And in order to have a computer perform the symbolic
+calculation we would have to encode our cost function somehow so that
+it is amenable to this form of manipulation.
+
+Other
+-----
+
+Automatic differentiation is *not*
+
+ * Symbolic differentiation or
+
+ * Numerical differentiation
 
 > module TestDiag (
 >     main
