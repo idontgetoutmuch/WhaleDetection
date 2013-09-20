@@ -1,4 +1,6 @@
-module AM (foo) where
+module AM (
+    foo
+  , errDiag ) where
 
 import System.Environment(getArgs)
 import Graphics.Rendering.Chart
@@ -24,6 +26,9 @@ foo = fst $ runBackend bar (render chart (500, 500))
 bar :: DEnv
 bar = unsafePerformIO $ defaultEnv vectorAlignmentFns 500 500
 
+errDiag :: QDiagram Cairo R2 Any
+errDiag = fst $ runBackend bar (render errChart (500, 500))
+
 chart = toRenderable layout
   where
     am :: Double -> Double
@@ -43,6 +48,41 @@ chart = toRenderable layout
            $ layout1_plots .~ [Left (toPlot sinusoid1),
                                Left (toPlot sinusoid2)]
            $ def
+
+errChart = toRenderable layout
+  where
+    sinusoid1 = plot_lines_values .~ [[ (negate $ logBase 2 x,(negate $ logBase 2 $ numericalErr 1.0 x))
+                                      | x <- take 40 powersOf2]]
+              $ plot_lines_style  . line_color .~ opaque blue
+              $ plot_lines_title .~ "error"
+              $ def
+
+    layout = layout1_title .~ "Floating Point Error"
+           $ layout1_plots .~ [Left (toPlot sinusoid1)]
+           $ layout1_left_axis .~ errorAxis
+           $ layout1_bottom_axis .~ stepSizeAxis
+           $ def
+
+    errorAxis = laxis_title .~ "Minus log to base 2 of the error"
+              $ def
+
+    stepSizeAxis = laxis_title .~ "Minus log to base 2 of the step size"
+                 $ def
+
+
+f :: Double -> Double
+f x = exp x
+
+numericalF' :: Double -> Double -> Double
+numericalF' x h = (f (x + h) - f x) / h
+
+numericalErr :: Double -> Double -> Double
+numericalErr x h = abs ((exp 1.0 - numericalF' x h))
+
+powersOf2 :: Fractional a => [a]
+powersOf2 = 1 : map (/2) powersOf2
+
+errs = map (logBase 2 . numericalErr 1.0) powersOf2
 
 main1 ["small"]  = renderableToPNGFile chart 320 240 "example1_small.png"
 main1 ["big"]    = renderableToPNGFile chart 800 600 "example1_big.png"

@@ -1,0 +1,33 @@
+\documentclass{beamer}
+\usepackage[latin1]{inputenc}
+
+\newcommand {\framedgraphic}[2] {
+    \begin{frame}{#1}
+        \begin{center}
+            \includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{#2}
+        \end{center}
+    \end{frame}
+}
+
+\usetheme{Warsaw}
+\title[Automatic differentiation and neural nets]{Automatic
+  Differentiation\\Application to Machine Learning}
+\author{Dominic Steinitz}
+\institute{Kingston University}
+\date{15 September 2013}
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+
+\begin{frame}{Introduction}
+What automatic differentiation isn't.
+\end{frame}
+
+\framedgraphic{Test}{diagrams/47765b66dd184563734f30899fe8fe0e.png}
+
+\framedgraphic{Test}{diagrams/2f3e3aed228a56c0d0d9ca086f05e1d5.png}
+
+\end{document}

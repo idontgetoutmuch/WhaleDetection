@@ -1,7 +1,47 @@
+% The Precession of the Perihelion of Mercury via Legendre Polynomials
+% Dominic Steinitz
+% 25th August 2013
+
+Introduction
+------------
+
+Suppose we have the following program (written in Python)
+
+~~~~ { .python }
+import numpy as np
+
+def many_sines(x):
+    y = x
+    for i in range(1,7):
+        y = np.sin(x+y)
+    return y
+~~~~
+
+When we unroll the loop we are actually evaluating
+
+$$
+f(x) = \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + x))))))
+$$
+
+Now suppose we want to get the differential of this
+function. Symbolically this would be
+
+$$
+\begin{aligned}
+f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(2x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(2x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(2x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+x)
+\end{aligned}
+$$
+
 > module TestDiag (
 >     main
 >   , example
->   , foo ) where
+>   , foo
+>   , errDiag ) where
 
 > import Data.List.Split
 > import Data.Maybe
@@ -13,7 +53,13 @@
 > import Diagrams.Prelude
 > import Graphics.SVGFonts
 >
-> import AM (foo)
+> import AM ( foo, errDiag )
+
+
+```{.dia width='500'}
+import TestDiag
+dia = errDiag
+```
 
 ```{.dia width='500'}
 import TestDiag
