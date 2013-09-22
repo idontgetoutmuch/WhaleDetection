@@ -57,20 +57,20 @@ var s n = (box (centredText' s 1) padAmount red) # named n
 
 cube :: Diagram Cairo R2
 cube = mconcat
-  [ var "z" "zname"      # translate right
+  [ var "u1" "u1name"      # translate right
   , fun "exp (_)" "exp1" # translate (right ^+^ down)
-  , var "y" "yname"      # translate (right ^+^ down ^+^
-                                      down)
+  , var "u2" "u2name"      # translate (right ^+^ down ^+^
+                                        down)
   , fun "(_)^2" "^2"     # translate (right ^+^ down ^+^
                                       down ^+^ right)
   , fun "+" "+1"         # translate (right ^+^ down ^+^
                                       down ^+^ down)
-  , var "x" "xname"      # translate (right ^+^ down ^+^
-                                      down ^+^ right ^+^
-                                      down)
-  , var "w" "wname"      # translate (right ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down)
+  , var "u3" "u3name"      # translate (right ^+^ down ^+^
+                                        down ^+^ right ^+^
+                                        down)
+  , var "u4" "u4name"      # translate (right ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down)
   , fun "exp (_)" "exp2" # translate (right ^+^ down ^+^
                                       down ^+^ down ^+^
                                       down ^+^ down ^+^
@@ -79,41 +79,41 @@ cube = mconcat
                                       down ^+^ down ^+^
                                       down ^+^ down ^+^
                                       right)
-  , var "u" "uname"      # translate (right ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ left)
-  , var "v" "vname"      # translate (right ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ right)
+  , var "u6" "u6name"      # translate (right ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ left)
+  , var "u5" "u5name"      # translate (right ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ right)
   , fun "+" "+2"         # translate (right ^+^ down ^+^
                                       down ^+^ down ^+^
                                       down ^+^ down ^+^
                                       down ^+^ down)
-  , var "f" "fname"      # translate (right ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down ^+^ down ^+^
-                                      down)
+  , var "u7" "u7name"      # translate (right ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down ^+^ down ^+^
+                                        down)
                ]
 
 drawLines :: Diagram Cairo R2 -> Diagram Cairo R2
 drawLines cube = foldr (.) id (map (uncurry connect) pairs) cube
-  where pairs = [ ("zname","exp1")
-                , ("exp1", "yname")
-                , ("yname", "+1")
-                , ("yname", "^2")
-                , ("^2", "xname")
-                , ("xname", "+1")
-                , ("+1", "wname")
-                , ("wname", "exp2")
-                , ("wname", "sin")
-                , ("exp2", "uname")
-                , ("sin", "vname")
-                , ("uname", "+2")
-                , ("vname", "+2")
-                , ("+2", "fname")
+  where pairs = [ ("u1name", "exp1")
+                , ("exp1",   "u2name")
+                , ("u2name", "+1")
+                , ("u2name", "^2")
+                , ("^2",     "u3name")
+                , ("u3name", "+1")
+                , ("+1",     "u4name")
+                , ("u4name", "exp2")
+                , ("u4name", "sin")
+                , ("exp2",   "u6name")
+                , ("sin",    "u5name")
+                , ("u6name", "+2")
+                , ("u5name", "+2")
+                , ("+2",     "u7name")
                 ]
 
 connect n1 n2 = withName n1 $ \b1 ->

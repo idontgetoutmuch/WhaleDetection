@@ -1,21 +1,38 @@
-% Backpropogate is Just Steepest Descent with Automatic Differentiation
+% Backpropogation is Just Steepest Descent with Automatic Differentiation
 % Dominic Steinitz
 % 20th September 2013
 
 Introduction
-------------
+============
+
+This article is divided into
+
+ * Refresher on neural networks
+
+ * Methods for differentiation
+
+ * Backpropogation
+
+ * Concluding thoughts
+
+Neural Network Refresher
+========================
+
+Differentiation
+===============
 
 We consider multi-layer perceptrons and use the term neural network
-interchangeably. In summary we have a parameterised non-linear model,
-a cost function and some training data and we wish to estimate the
-parameters from the training data so as to minimize the total cost
+interchangeably. In summary we have a parameterised non-linear model
+(the neural network), a cost function and some training data and we
+wish to estimate the parameters in the neural network from the
+training data so as to minimize the total cost
 
 $$
 E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
 $$
 
 where $\boldsymbol{w}$ is the vector of parameters in the model,
-$\boldsymbol{x}$ are the inputes, $boldsymbol{y}$ are the outputs and
+$\boldsymbol{x}$ are the inputs, $\boldsymbol{y}$ are the outputs and
 $\hat{\boldsymbol{y}}$ are outputs predicted by our model. For now the
 exact form of the model is not important.
 
@@ -64,13 +81,21 @@ f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
 \end{aligned}
 $$
 
-Typically the non-linear function in a neural network is much more
-complex than the simple function given above. Thus its derivative will
-correspondingly more complex and therefore expensive to
+Typically the non-linear function that a neural network gives is much
+more complex than the simple function given above. Thus its derivative
+will correspondingly more complex and therefore expensive to
 compute. Moreover calculating this derivative by hand could easily
 introduce errors. And in order to have a computer perform the symbolic
 calculation we would have to encode our cost function somehow so that
 it is amenable to this form of manipulation.
+
+Numerical Differentiation
+-------------------------
+
+```{.dia width='500'}
+import MLTalkDiagrams
+dia = errDiag
+```
 
 Other
 -----
@@ -81,37 +106,30 @@ Automatic differentiation is *not*
 
  * Numerical differentiation
 
-> module TestDiag (
->     main
->   , example
->   , foo
->   , errDiag ) where
+Consider the function
 
-> import Data.List.Split
-> import Data.Maybe
-> import Diagrams.Backend.Cairo
-> import Diagrams.Backend.Cairo.CmdLine
-> import Diagrams.BoundingBox
-> import Diagrams.Core.Envelope
-> import Diagrams.Coordinates
-> import Diagrams.Prelude
-> import Graphics.SVGFonts
->
-> import AM ( foo, errDiag )
+$$
+f(x) = \exp(\exp(x) + (\exp(x))^2) + \sin(\exp(x) + (\exp(x))^2)
+$$
 
-
-```{.dia width='500'}
-import MLTalkDiagrams
-dia = errDiag
-```
-
-```{.dia width='500'}
-import MLTalkDiagrams
-dia = foo
-```
+Let us write this a data flow graph.
 
 ```{.dia width='500'}
 import MLTalkDiagrams
 dia = example
 ```
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_7} &= 1 \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1 \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
+\frac{\mathrm{d}f}{\mathrm{d}w} &= \frac{\mathrm{d}f}{\mathrm{d}u}\frac{\mathrm{d}u}{\mathrm{d}w} +
+                                   \frac{\mathrm{d}f}{\mathrm{d}v}\frac{\mathrm{d}v}{\mathrm{d}w} \\
+\frac{\mathrm{d}f}{\mathrm{d}x} &= \frac{\mathrm{d}f}{\mathrm{d}w}\frac{\mathrm{d}w}{\mathrm{d}x} \\
+\frac{\mathrm{d}f}{\mathrm{d}y} &= \frac{\mathrm{d}f}{\mathrm{d}y}\frac{\mathrm{d}y}{\mathrm{d}w} +
+                                   \frac{\mathrm{d}f}{\mathrm{d}x}\frac{\mathrm{d}x}{\mathrm{d}w}
+\end{aligned}
+$$
+
 
