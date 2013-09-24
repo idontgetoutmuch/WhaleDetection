@@ -1,5 +1,6 @@
 module MLTalkDiagrams (
     example
+  , example1
   , foo
   , errDiag ) where
 
@@ -17,6 +18,10 @@ import AM ( foo, errDiag )
 
 example = let c = cube
           in pad 1.1 . centerXY $ c <> drawLines c
+
+example1 =
+  let a = ann in
+  pad 1.1 . centerXY $ a <> drawLines1 a
 
 box innards padding colour =
     let padded =                  strutY padding
@@ -54,6 +59,7 @@ left = ((-5)&0)
 
 fun s n = (box (centredText' s 1) padAmount blue) # named n
 var s n = (box (centredText' s 1) padAmount red) # named n
+nde s n = (box (centredText' s 1) padAmount green) # named n
 
 cube :: Diagram Cairo R2
 cube = mconcat
@@ -114,6 +120,34 @@ drawLines cube = foldr (.) id (map (uncurry connect) pairs) cube
                 , ("u6name", "+2")
                 , ("u5name", "+2")
                 , ("+2",     "u7name")
+                ]
+
+ann :: Diagram Cairo R2
+ann = mconcat
+  [ nde "output1" "o1"
+  , nde "output2" "o2" # translate right
+  , nde "output3" "o3" # translate (right ^+^ right)
+  , nde "hidden1" "h1" # translate (down ^+^ 0.5 * right)
+  , nde "hidden2" "h2" # translate (down ^+^ right ^+^ 0.5 * right)
+  , nde "input1" "i1"  # translate (down ^+^ down)
+  , nde "input2" "i2"  # translate (down ^+^ down ^+^ right)
+  , nde "input3" "i3"  # translate (down ^+^ down ^+^ right ^+^ right)
+  ]
+
+drawLines1 :: Diagram Cairo R2 -> Diagram Cairo R2
+drawLines1 ann = foldr (.) id (map (uncurry connect) pairs) ann
+  where pairs = [ ("h1", "o1")
+                , ("h1", "o2")
+                , ("h1", "o3")
+                , ("h2", "o1")
+                , ("h2", "o2")
+                , ("h2", "o3")
+                , ("i1", "h1")
+                , ("i1", "h2")
+                , ("i2", "h1")
+                , ("i2", "h2")
+                , ("i3", "h1")
+                , ("i3", "h2")
                 ]
 
 connect n1 n2 = withName n1 $ \b1 ->

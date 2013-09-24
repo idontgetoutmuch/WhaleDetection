@@ -18,6 +18,40 @@ This article is divided into
 Neural Network Refresher
 ========================
 
+Here is our model, with $\boldsymbol{x}$ the input,
+$\hat{\boldsymbol{y}}$ the predicted output and $\boldsymbol{y}$ the
+actual output and $w^{(k)}$ the weights in the $k$-th layer.
+
+$$
+\begin{aligned}
+a_j^{(1)} &= \sum_{i=0}^{M^{(1)}} w_{ij}^{(1)} x_i \\
+z_j^{(1)} &= \tanh(a_j^{(1)}) \\
+a_j^{(2)} &= \sum_{i=0}^{M^{(2)}} w_{ij}^{(2)} z_i^{(1)} \\
+\dots     &= \ldots \\
+a_j^{(L-1)} &= \sum_{i=0}^{M^{(L-1)}} w_{ij}^{(L-1)} z_i^{(L-2)} \\
+z_j^{(L-1)} &= \tanh(a_j^{(L-1)}) \\
+\hat{y}_j &= \sum_{i=0}^{M^{(L)}} w_{ij}^{(L)} z_i^{(L-1)} \\
+\end{aligned}
+$$
+
+with the loss or cost function
+
+$$
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
+$$
+
+The diagram below depicts a neural network with a single hidden layer.
+
+```{.dia width='500'}
+import MLTalkDiagrams
+dia = example1
+```
+In order to apply the steepest descent algorithm we need to calculate the differentials of this latter function with respect to the weights, that is, we need to calculate
+
+$$
+\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}}
+$$
+
 Differentiation
 ===============
 
@@ -124,12 +158,23 @@ $$
 \frac{\mathrm{d}u_7}{\mathrm{d}u_7} &= 1 \\
 \frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1 \\
 \frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
-\frac{\mathrm{d}f}{\mathrm{d}w} &= \frac{\mathrm{d}f}{\mathrm{d}u}\frac{\mathrm{d}u}{\mathrm{d}w} +
-                                   \frac{\mathrm{d}f}{\mathrm{d}v}\frac{\mathrm{d}v}{\mathrm{d}w} \\
-\frac{\mathrm{d}f}{\mathrm{d}x} &= \frac{\mathrm{d}f}{\mathrm{d}w}\frac{\mathrm{d}w}{\mathrm{d}x} \\
-\frac{\mathrm{d}f}{\mathrm{d}y} &= \frac{\mathrm{d}f}{\mathrm{d}y}\frac{\mathrm{d}y}{\mathrm{d}w} +
-                                   \frac{\mathrm{d}f}{\mathrm{d}x}\frac{\mathrm{d}x}{\mathrm{d}w}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_4} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\frac{\mathrm{d}u_6}{\mathrm{d}u_4} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\frac{\mathrm{d}u_5}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_3} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_3} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_2} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_4} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_3}\frac{\mathrm{d}u_3}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_1} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_1}
 \end{aligned}
 $$
 
 
+> data Dx = D Double Double
+>         deriving (Eq, Show)
+> 
+> instance Num Dx where
+>   (D x a) + (D y b) = D (x + y) (a + b)
+>   
