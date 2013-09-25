@@ -5,6 +5,26 @@
 Introduction
 ============
 
+The problem is simple to state: we have a (highly) non-linear
+function, the cost function of an Artifical Neural Network (ANN), and
+we wish to minimize this so as to estimate the parameters / weights of
+the function.
+
+In order to minimise the function, one obvious approach is to use
+steepest descent: start with random values for the parameters to be
+estimated, find the direction in which the the function decreases most
+quickly, step a small amount in that direction and repeat until close
+enough.
+
+But we have two problems:
+
+* We have an algorithm or a computer program that calculates the
+non-linear function rather than the function itself.
+
+* The function has a very large number of parameters, hundreds if not
+thousands.
+
+
 This article is divided into
 
  * Refresher on neural networks
@@ -14,6 +34,12 @@ This article is divided into
  * Backpropogation
 
  * Concluding thoughts
+
+The only thing important to remember throughout is the chain rule
+
+$$
+(g \circ f)'(a) = g'(f(a))\cdot f'(a)
+$$
 
 Neural Network Refresher
 ========================
@@ -51,6 +77,48 @@ In order to apply the steepest descent algorithm we need to calculate the differ
 $$
 \Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}}
 $$
+
+Applying the chain rule
+
+$$
+\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}} = -\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}}
+$$
+
+Since
+
+$$
+a_j = \sum_{i=0}^M w_{ij}z_i
+$$
+
+we have
+
+$$
+\frac{\partial a_i}{\partial w_{ij}} = \frac{\sum_{l=0}^M w_{lj}z_l}{\partial w_{ij}} = z_i
+$$
+
+Defining
+
+$$
+\delta_j \equiv -\frac{\partial E}{\partial a_j}
+$$
+
+we obtain
+
+$$
+\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}} = \delta_j z_i
+$$
+
+Finding the $z_i$ for each layer is straightforward: we start with the
+inputs and propagate forward. In order to find the $\delta_j$ we need
+to start with the outputs a propagate backwards:
+
+* For the output layer we have (since $\hat{y}_j = a_j$)
+
+$$
+\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial y_j} = \frac{\partial}{\partial y_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
+$$
+
+
 
 Differentiation
 ===============
