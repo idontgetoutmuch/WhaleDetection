@@ -24,16 +24,45 @@ non-linear function rather than the function itself.
 * The function has a very large number of parameters, hundreds if not
 thousands.
 
+One thing we could try is bumping each parameter by a small amount to
+get partial derivatives numerically
+
+$$
+\frac{\partial E(\ldots, w, \ldots)}{\partial w} \approx \frac{E(\ldots, w + \epsilon, \ldots) - E(\ldots, w, \ldots)}{\epsilon}
+$$
+
+But this would mean evaluating our function many times and moreover we
+could easily get numerical errors as a result of the vagaries of
+floating point arithmentic.
+
+As an alternative we could turn our algorithm or computer program into
+a function more recognisable as a mathematical function and then
+compute the differential itself as a function either by hand or by
+using a symbolic differentiation package. For the complicated
+expression which is our mathematical function, the former would be
+error prone and the latter could easily generate something which would
+be even more complex and costly to evaluate than the original
+expression.
+
+The standard approach is to use a technique called backpropagation and
+the understanding and application of this technique forms a large part
+of many machine learning lecture courses.
+
+Since at least the 1960s techniques for automatically differentiating
+computer programs have been discovered and re-discovered. Anyone who
+knows about these techniques and reads about backpropagation quickly
+realises that backpropagation is just automatic differentiation and
+steepest descent.
 
 This article is divided into
 
- * Refresher on neural networks
+ * Refresher on neural networks and backpropagation;
 
- * Methods for differentiation
+ * Methods for differentiation;
 
- * Backpropogation
+ * Backward and forward automatic differentiation and
 
- * Concluding thoughts
+ * Concluding thoughts.
 
 The only thing important to remember throughout is the chain rule
 
@@ -46,17 +75,17 @@ Neural Network Refresher
 
 Here is our model, with $\boldsymbol{x}$ the input,
 $\hat{\boldsymbol{y}}$ the predicted output and $\boldsymbol{y}$ the
-actual output and $w^{(k)}$ the weights in the $k$-th layer.
+actual output and $w^{(k)}$ the weights in the $k$-th layer. We 
 
 $$
 \begin{aligned}
-a_j^{(1)} &= \sum_{i=0}^{M^{(1)}} w_{ij}^{(1)} x_i \\
+a_j^{(1)} &= \sum_{i=0}^{N^{(1)}} w_{ij}^{(1)} x_i \\
 z_j^{(1)} &= \tanh(a_j^{(1)}) \\
-a_j^{(2)} &= \sum_{i=0}^{M^{(2)}} w_{ij}^{(2)} z_i^{(1)} \\
+a_j^{(2)} &= \sum_{i=0}^{N^{(2)}} w_{ij}^{(2)} z_i^{(1)} \\
 \dots     &= \ldots \\
-a_j^{(L-1)} &= \sum_{i=0}^{M^{(L-1)}} w_{ij}^{(L-1)} z_i^{(L-2)} \\
+a_j^{(L-1)} &= \sum_{i=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_i^{(L-2)} \\
 z_j^{(L-1)} &= \tanh(a_j^{(L-1)}) \\
-\hat{y}_j &= \sum_{i=0}^{M^{(L)}} w_{ij}^{(L)} z_i^{(L-1)} \\
+\hat{y}_j &= \sum_{i=0}^{N^{(L)}} w_{ij}^{(L)} z_i^{(L-1)} \\
 \end{aligned}
 $$
 
