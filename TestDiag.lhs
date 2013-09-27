@@ -238,6 +238,30 @@ differentiation. Let us examine those in a bit more detail before
 moving on to a general technique for differentiating programs of which
 backpropagation turns out to be a specialisation.
 
+Numerical Differentiation
+-------------------------
+
+Consider the function $f(x) = e^x$ then its differential $f'(x) = e^x$
+and we can easily compare a numerical approximation of this with the exact
+result. The numeric approximation is given by
+
+$$
+f'(x) \approx \frac{f(x + \epsilon) - f(x)}{\epsilon}
+$$
+
+In theory we should get a closer and closer approximation as epsilon
+decreases but as the chart below shows at some point (with $\epsilon
+\approx 2^{-26}$) the approximation worsens as a result of the fact
+that we are using floating point arithmetic. For a complex function
+such as one which calculates the cost function of an ANN, there is a
+risk that we may end up getting a poor approximation for the
+derivative and thus a poor estimate for the parameters of the model.
+
+```{.dia width='500'}
+import MLTalkDiagrams
+dia = errDiag
+```
+
 Symbolic Differentiation
 ------------------------
 
@@ -273,30 +297,16 @@ f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
 \end{aligned}
 $$
 
-Typically the non-linear function that a neural network gives is much
-more complex than the simple function given above. Thus its derivative
-will correspondingly more complex and therefore expensive to
+Typically the non-linear function that an ANN gives is much more
+complex than the simple function given above. Thus its derivative will
+correspondingly more complex and therefore expensive to
 compute. Moreover calculating this derivative by hand could easily
 introduce errors. And in order to have a computer perform the symbolic
 calculation we would have to encode our cost function somehow so that
 it is amenable to this form of manipulation.
 
-Numerical Differentiation
--------------------------
-
-```{.dia width='500'}
-import MLTalkDiagrams
-dia = errDiag
-```
-
-Other
------
-
-Automatic differentiation is *not*
-
- * Symbolic differentiation or
-
- * Numerical differentiation
+Automatic Differentiation
+=========================
 
 Consider the function
 
@@ -330,9 +340,40 @@ $$
 $$
 
 
-> data Dx = D Double Double
->         deriving (Eq, Show)
+> data Dual = Dual Double Double
+>   deriving (Eq, Show)
 > 
-> instance Num Dx where
->   (D x a) + (D y b) = D (x + y) (a + b)
+> constD :: Double -> Dual
+> constD x = Dual x 0
+> 
+> instance Num Dual where
+>   fromInteger n             = constD $ fromInteger n
+>   (Dual x x') + (Dual y y') = Dual (x + y) (x' + y')
+>   (Dual x x') * (Dual y y') = Dual (x * y) (x * y' + y * x')
+>   negate (Dual x x')        = Dual (negate x) (negate x')
+>   signum _                  = undefined
+>   abs _                     = undefined
+> 
+> instance Fractional Dual where
+>   fromRational p = constD $ fromRational p
+>   recip (Dual x x') = Dual (1.0 / x) (-x' / (x * x))
+
+$$
+\begin{aligned}
+\log (x + \epsilon x') &=
+\log x (1 + \epsilon \frac {x'}{x}) =
+\log x + \epsilon\frac{x'}{x} \\
+\sqrt{(x + \epsilon x')} &=
+\sqrt{x(1 + \epsilon\frac{x'}{x})} =
+\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}
+\end{aligned}
+$$
+
+> 
+> instance Floating Dual where
+>   pi = constD pi
+>   exp (Dual x x') = Dual (exp x) (x' * exp x)
+>   log (Dual x x') = Dual (log x) (x' / x)
+>   sqrt (Dual x x') = Dual (sqrt x) (x' / (2 * sqrt x))
 >   
