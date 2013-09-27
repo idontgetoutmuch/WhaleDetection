@@ -6,7 +6,7 @@ Introduction
 ============
 
 The problem is simple to state: we have a (highly) non-linear
-function, the cost function of an Artifical Neural Network (ANN), and
+function, the cost function of an Artificial Neural Network (ANN), and
 we wish to minimize this so as to estimate the parameters / weights of
 the function.
 
@@ -33,7 +33,7 @@ $$
 
 But this would mean evaluating our function many times and moreover we
 could easily get numerical errors as a result of the vagaries of
-floating point arithmentic.
+floating point arithmetic.
 
 As an alternative we could turn our algorithm or computer program into
 a function more recognisable as a mathematical function and then
@@ -70,22 +70,42 @@ $$
 (g \circ f)'(a) = g'(f(a))\cdot f'(a)
 $$
 
+in alternative notation
+
+$$
+\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x}(a) =
+\frac{\mathrm{d} g}{\mathrm{d} y}(f(a)) \frac{\mathrm{d} f}{\mathrm{d} x}(a)
+$$
+
+where $y = f(x)$. More suggestively we can write
+
+$$
+\frac{\mathrm{d} g}{\mathrm{d} x} =
+\frac{\mathrm{d} g}{\mathrm{d} y} \frac{\mathrm{d} y}{\mathrm{d} x}
+$$
+
+where it is understood that $\mathrm{d} g / \mathrm{d} x$ and
+$\mathrm{d} y / \mathrm{d} x$ are evaluated at $a$ and $\mathrm{d} g /
+\mathrm{d} y$ is evaluated at $f(a)$.
+
 Neural Network Refresher
 ========================
 
 Here is our model, with $\boldsymbol{x}$ the input,
 $\hat{\boldsymbol{y}}$ the predicted output and $\boldsymbol{y}$ the
-actual output and $w^{(k)}$ the weights in the $k$-th layer. We 
+actual output and $w^{(k)}$ the weights in the $k$-th layer. We have
+concretised the transfer function as $\tanh$ but it is quite popular
+to use the $\text{logit}$ function.
 
 $$
 \begin{aligned}
-a_j^{(1)} &= \sum_{i=0}^{N^{(1)}} w_{ij}^{(1)} x_i \\
-z_j^{(1)} &= \tanh(a_j^{(1)}) \\
-a_j^{(2)} &= \sum_{i=0}^{N^{(2)}} w_{ij}^{(2)} z_i^{(1)} \\
+a_i^{(1)} &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j \\
+z_i^{(1)} &= \tanh(a_i^{(1)}) \\
+a_i^{(2)} &= \sum_{j=0}^{N^{(2)}} w_{ij}^{(2)} z_j^{(1)} \\
 \dots     &= \ldots \\
-a_j^{(L-1)} &= \sum_{i=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_i^{(L-2)} \\
+a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} \\
 z_j^{(L-1)} &= \tanh(a_j^{(L-1)}) \\
-\hat{y}_j &= \sum_{i=0}^{N^{(L)}} w_{ij}^{(L)} z_i^{(L-1)} \\
+\hat{y}_i &= \sum_{j=0}^{N^{(L)}} w_{ij}^{(L)} z_j^{(L-1)} \\
 \end{aligned}
 $$
 
@@ -104,78 +124,119 @@ dia = example1
 In order to apply the steepest descent algorithm we need to calculate the differentials of this latter function with respect to the weights, that is, we need to calculate
 
 $$
-\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}}
+\Delta w_{ij} = \frac{\partial E}{\partial w_{ij}}
 $$
 
 Applying the chain rule
 
 $$
-\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}} = -\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}}
+\Delta w_{ij} =
+\frac{\partial E}{\partial w_{ij}} =
+\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}}
 $$
 
 Since
 
 $$
-a_j = \sum_{i=0}^M w_{ij}z_i
+a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
 $$
 
 we have
 
 $$
-\frac{\partial a_i}{\partial w_{ij}} = \frac{\sum_{l=0}^M w_{lj}z_l}{\partial w_{ij}} = z_i
+\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
+\frac{\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)}}{\partial w_{ij}^{(l)}} =
+z_i^{(l-1)}
 $$
 
 Defining
 
 $$
-\delta_j \equiv -\frac{\partial E}{\partial a_j}
+\delta_j^{(l)} \equiv
+\frac{\partial E}{\partial a_j^{(l)}}
 $$
 
 we obtain
 
 $$
-\Delta w_{ij} = -\frac{\partial E}{\partial w_{ij}} = \delta_j z_i
+\Delta w_{ij}^{(l)} =
+\frac{\partial E}{\partial w_{ij}^{(l)}} =
+\delta_j^{(l)} z_i^{(l-1)}
 $$
 
 Finding the $z_i$ for each layer is straightforward: we start with the
 inputs and propagate forward. In order to find the $\delta_j$ we need
 to start with the outputs a propagate backwards:
 
-* For the output layer we have (since $\hat{y}_j = a_j$)
+For the output layer we have (since $\hat{y}_j = a_j$)
 
 $$
 \delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial y_j} = \frac{\partial}{\partial y_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
 $$
 
+For a hidden layer using the chain rule
 
+$$
+\delta_j^{(l-1)} = \frac{\partial E}{\partial a_j^{(l-1)}} =
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+$$
+
+Now
+
+$$
+a_k^{(l)} = \sum_i w_{ki}^{(l)}z_i^{(l-1)} = \sum_i w_{ki}^{(l)} f(a_i^{(l-1)})
+$$
+
+so that
+
+$$
+\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\frac{\sum_i w_{ki}^{(l)} f(a_i^{(l-1)})}{\partial a_j^{(l-1)}} =
+w_{kj}^{(l)}\,f'(a_j^{(l-1)})
+$$
+
+and thus
+
+$$
+\delta_j^{(l-1)} =
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) =
+f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
+$$
+
+Summarising
+
+1. We calculate all $a_j$ and $z_j$ for each layer starting with the
+input layer and propagating forward.
+
+2. We evaluate $\delta_j^{(L)}$ in the output layer using $\delta_j = \hat{y}_j - y_j$.
+
+3. We evaluate $\delta_j$ in each layer using $\delta_j^{(l-1)} =
+f'(a_j^{(l-1)})\sum_k \delta_k^{(l)} w_{kj}^{(l)}$ starting with the output
+layer and propagating backwards.
+
+4. Use $\partial E / \partial w_{ij}^{(l)} = \delta_j^{(l)} z_i^{(l-1)}$ to obtain the
+required derivatives in each layer.
+
+For the particular activation function $\tanh$ we have $f'(a) = \tanh'
+(a) = 1 - \tanh^2(a)$. And finally we can use the partial derivatives
+to step in the right direction using steepest descent
+
+$$
+w' = w - \gamma\nabla E(w)
+$$
+
+where $\gamma$ is the step size aka the learning rate.
 
 Differentiation
 ===============
 
-We consider multi-layer perceptrons and use the term neural network
-interchangeably. In summary we have a parameterised non-linear model
-(the neural network), a cost function and some training data and we
-wish to estimate the parameters in the neural network from the
-training data so as to minimize the total cost
-
-$$
-E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
-$$
-
-where $\boldsymbol{w}$ is the vector of parameters in the model,
-$\boldsymbol{x}$ are the inputs, $\boldsymbol{y}$ are the outputs and
-$\hat{\boldsymbol{y}}$ are outputs predicted by our model. For now the
-exact form of the model is not important.
-
-In order to find the parameters that minimize the loss function we use
-steepest (aka gradient) descent: we calculate the derivative of the
-loss function and then step a small way in the direction that reduces
-the cost the most. The fact that we are minimizing non-linear function
-means that we may end up at a local minimum but that is just a fact of
-life and we do not consider this here any further. So all we need is
-the derivative of our cost function.
-
-Let us consider some techniques for doing this.
+So now we have an efficient algorithm for differentiating the cost
+function for an ANN and thus estimating its parameters but it seems
+quite complex. In the introduction we alluded to other methods of
+differentiation. Let us examine those in a bit more detail before
+moving on to a general technique for differentiating programs of which
+backpropagation turns out to be a specialisation.
 
 Symbolic Differentiation
 ------------------------
