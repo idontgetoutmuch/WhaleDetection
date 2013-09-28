@@ -88,6 +88,15 @@ where it is understood that $\mathrm{d} g / \mathrm{d} x$ and
 $\mathrm{d} y / \mathrm{d} x$ are evaluated at $a$ and $\mathrm{d} g /
 \mathrm{d} y$ is evaluated at $f(a)$.
 
+For example,
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} x} \sqrt{3 \sin(x)} =
+\frac{\mathrm{d}}{\mathrm{d} x} (3 \sin(x)) \cdot \frac{\mathrm{d}}{\mathrm{d} y} \sqrt{y} =
+3 \cos(x) \cdot \frac{1}{2\sqrt{y}} =
+\frac{3\cos(x)}{2\sqrt{3\sin(x)}}
+$$
+
 Neural Network Refresher
 ========================
 
@@ -340,11 +349,18 @@ $$
 $$
 
 
+> module TestDiag (
+>   Dual(..)
+>   ) where
+> 
 > data Dual = Dual Double Double
 >   deriving (Eq, Show)
 > 
 > constD :: Double -> Dual
 > constD x = Dual x 0
+> 
+> idD :: Double -> Dual
+> idD x = Dual x 1.0
 > 
 > instance Num Dual where
 >   fromInteger n             = constD $ fromInteger n
@@ -358,6 +374,8 @@ $$
 >   fromRational p = constD $ fromRational p
 >   recip (Dual x x') = Dual (1.0 / x) (-x' / (x * x))
 
+For example
+
 $$
 \begin{aligned}
 \log (x + \epsilon x') &=
@@ -366,14 +384,33 @@ $$
 \sqrt{(x + \epsilon x')} &=
 \sqrt{x(1 + \epsilon\frac{x'}{x})} =
 \sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
-\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
+\ldots &= \ldots
 \end{aligned}
 $$
 
-> 
 > instance Floating Dual where
 >   pi = constD pi
->   exp (Dual x x') = Dual (exp x) (x' * exp x)
->   log (Dual x x') = Dual (log x) (x' / x)
->   sqrt (Dual x x') = Dual (sqrt x) (x' / (2 * sqrt x))
->   
+>   exp (Dual x x')   = Dual (exp x) (x' * exp x)
+>   log (Dual x x')   = Dual (log x) (x' / x)
+>   sqrt (Dual x x')  = Dual (sqrt x) (x' / (2 * sqrt x))
+>   sin (Dual x x')   = Dual (sin x) (x' * cos x)
+>   cos (Dual x x')   = Dual (cos x) (x' * (- sin x))
+>   sinh (Dual x x')  = Dual (sinh x) (x' * cosh x)
+>   cosh (Dual x x')  = Dual (cosh x) (x' * sinh x)
+>   asin (Dual x x')  = Dual (asin x) (x' / sqrt (1 - x^2))
+>   acos (Dual x x')  = Dual (acos x) (x' / (-sqrt (1 - x^2)))
+>   atan (Dual x x')  = Dual (atan x) (x' / (1 + x^2))
+>   asinh (Dual x x') = Dual (asinh x) (x' / sqrt (1 + x^2))
+>   acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x^2 - 1)))
+>   atanh (Dual x x') = Dual (atanh x) (x' / (1 - x^2))
+
+> f :: Floating a => a -> a
+> f =  sqrt . (* 3) . sin
+> 
+> f' :: Floating a => a -> a
+> f' x = 3 * cos x / (2 * sqrt (3 * sin x)) 
+ 
+    [ghci]
+    f $ idD 2
+    f' 2
