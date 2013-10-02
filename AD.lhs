@@ -349,13 +349,52 @@ $$
 $$
 
 
-> module TestDiag (
->   Dual(..)
+Forward Mode
+------------
+
+First some boilerplate declarations that need not concern us further.
+
+> module AD (
+>     Dual(..)
+>   , f
+>   , idD
 >   ) where
 > 
+
+Forward Mode AD has a simple implementation. Consider a function
+
+> g :: Double -> Double
+> g = undefined
+
+where we have specified only that this function takes a Double and
+returns a Double. Let us define dual numbers
+
 > data Dual = Dual Double Double
 >   deriving (Eq, Show)
-> 
+
+We can think of these pairs as first order polynomials in $\epsilon$,
+$x + \epsilon x'$ such that $\epsilon^2 = 0$
+
+Thus, for example, we have
+
+$$
+\begin{align}
+(x + \epsilon x') + (y + \epsilon y') &= ((x + y) + \epsilon (x' + y')) \\
+(x + \epsilon x')(y + \epsilon y') &= xy + \epsilon (xy' + x'y) \\
+\log (x + \epsilon x') &=
+\log x (1 + \epsilon \frac {x'}{x}) =
+\log x + \epsilon\frac{x'}{x} \\
+\sqrt{(x + \epsilon x')} &=
+\sqrt{x(1 + \epsilon\frac{x'}{x})} =
+\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
+\ldots &= \ldots
+\end{align}
+$$
+
+And now with a couple of helper functions we can implement this by
+making *Dual* an instance of *Num*, *Fractional* and *Floating*.
+
 > constD :: Double -> Dual
 > constD x = Dual x 0
 > 
@@ -374,43 +413,41 @@ $$
 >   fromRational p = constD $ fromRational p
 >   recip (Dual x x') = Dual (1.0 / x) (-x' / (x * x))
 
-For example
-
-$$
-\begin{aligned}
-\log (x + \epsilon x') &=
-\log x (1 + \epsilon \frac {x'}{x}) =
-\log x + \epsilon\frac{x'}{x} \\
-\sqrt{(x + \epsilon x')} &=
-\sqrt{x(1 + \epsilon\frac{x'}{x})} =
-\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
-\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
-\ldots &= \ldots
-\end{aligned}
-$$
-
 > instance Floating Dual where
 >   pi = constD pi
->   exp (Dual x x')   = Dual (exp x) (x' * exp x)
->   log (Dual x x')   = Dual (log x) (x' / x)
->   sqrt (Dual x x')  = Dual (sqrt x) (x' / (2 * sqrt x))
->   sin (Dual x x')   = Dual (sin x) (x' * cos x)
->   cos (Dual x x')   = Dual (cos x) (x' * (- sin x))
->   sinh (Dual x x')  = Dual (sinh x) (x' * cosh x)
->   cosh (Dual x x')  = Dual (cosh x) (x' * sinh x)
->   asin (Dual x x')  = Dual (asin x) (x' / sqrt (1 - x^2))
->   acos (Dual x x')  = Dual (acos x) (x' / (-sqrt (1 - x^2)))
->   atan (Dual x x')  = Dual (atan x) (x' / (1 + x^2))
+>   exp   (Dual x x') = Dual (exp x)   (x' * exp x)
+>   log   (Dual x x') = Dual (log x)   (x' / x)
+>   sqrt  (Dual x x') = Dual (sqrt x)  (x' / (2 * sqrt x))
+>   sin   (Dual x x') = Dual (sin x)   (x' * cos x)
+>   cos   (Dual x x') = Dual (cos x)   (x' * (- sin x))
+>   sinh  (Dual x x') = Dual (sinh x)  (x' * cosh x)
+>   cosh  (Dual x x') = Dual (cosh x)  (x' * sinh x)
+>   asin  (Dual x x') = Dual (asin x)  (x' / sqrt (1 - x^2))
+>   acos  (Dual x x') = Dual (acos x)  (x' / (-sqrt (1 - x^2)))
+>   atan  (Dual x x') = Dual (atan x)  (x' / (1 + x^2))
 >   asinh (Dual x x') = Dual (asinh x) (x' / sqrt (1 + x^2))
 >   acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x^2 - 1)))
 >   atanh (Dual x x') = Dual (atanh x) (x' / (1 - x^2))
 
+Let us implement the function we considered earlier.
+
 > f :: Floating a => a -> a
 > f =  sqrt . (* 3) . sin
-> 
+
+We know its derivative and can also implement it directly in Haskell.
+
 > f' :: Floating a => a -> a
 > f' x = 3 * cos x / (2 * sqrt (3 * sin x)) 
- 
+
+Now we can evaluate the function along with its automatically
+calculated derivative and compare that with the derivative we
+calculated symbolically by hand.
+
     [ghci]
     f $ idD 2
     f' 2
+
+To see that we are *not* doing symbolic differentiation (it's easy to
+see we are not doing numerical differentiation) let us follow step
+through the actual evaluation.
+
