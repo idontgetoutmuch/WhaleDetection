@@ -352,22 +352,25 @@ $$
 Forward Mode
 ------------
 
+An alternative method for automic differentiation is called forward
+mode and has a simple implementation. Let us illustrate this using
+[Haskell 98].
+
+  [Haskell 98]: http://www.haskell.org/onlinereport "haskell.org online report"
+
 First some boilerplate declarations that need not concern us further.
 
+> {-# LANGUAGE NoMonomorphismRestriction #-}
+> 
 > module AD (
 >     Dual(..)
 >   , f
 >   , idD
 >   ) where
 > 
+> default ()
 
-Forward Mode AD has a simple implementation. Consider a function
-
-> g :: Double -> Double
-> g = undefined
-
-where we have specified only that this function takes a Double and
-returns a Double. Let us define dual numbers
+ Let us define dual numbers
 
 > data Dual = Dual Double Double
 >   deriving (Eq, Show)
@@ -392,8 +395,38 @@ $$
 \end{align}
 $$
 
-And now with a couple of helper functions we can implement this by
-making *Dual* an instance of *Num*, *Fractional* and *Floating*.
+Notice that these equations implicitly encode the chain rule. For
+example, we know, using the chain rule, that
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} x}\log(\sqrt x) =
+\frac{1}{\sqrt x}\frac{1}{2}x^{-1/2} =
+\frac{1}{2x}
+$$
+
+And using the example equations above we have
+
+$$
+\begin{align}
+\log(\sqrt (x + \epsilon x')) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
+                              &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
+                              &= log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
+\end{align}
+$$
+
+Notice that dual numbers carry around the calculation and the
+derivative of the calculation. To actually evaluate $\log(\sqrt{x})$
+at a particular value, say 2, we plug in 2 for $x$ and 1 for $x'$
+
+$$
+\log (\sqrt(2 + \epsilon 1) = \log(\sqrt{2}) + \epsilon\frac{1}{4}
+$$
+
+Thus the derivative of $\log(\sqrt{x})$ at 2 is $1/4$.
+
+With a couple of helper functions we can implement this rule
+($\epsilon^2 = 0$) by making *Dual* an instance of *Num*, *Fractional*
+and *Floating*.
 
 > constD :: Double -> Dual
 > constD x = Dual x 0
@@ -422,21 +455,30 @@ making *Dual* an instance of *Num*, *Fractional* and *Floating*.
 >   cos   (Dual x x') = Dual (cos x)   (x' * (- sin x))
 >   sinh  (Dual x x') = Dual (sinh x)  (x' * cosh x)
 >   cosh  (Dual x x') = Dual (cosh x)  (x' * sinh x)
->   asin  (Dual x x') = Dual (asin x)  (x' / sqrt (1 - x^2))
->   acos  (Dual x x') = Dual (acos x)  (x' / (-sqrt (1 - x^2)))
->   atan  (Dual x x') = Dual (atan x)  (x' / (1 + x^2))
->   asinh (Dual x x') = Dual (asinh x) (x' / sqrt (1 + x^2))
->   acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x^2 - 1)))
->   atanh (Dual x x') = Dual (atanh x) (x' / (1 - x^2))
+>   asin  (Dual x x') = Dual (asin x)  (x' / sqrt (1 - x*x))
+>   acos  (Dual x x') = Dual (acos x)  (x' / (-sqrt (1 - x*x)))
+>   atan  (Dual x x') = Dual (atan x)  (x' / (1 + x*x))
+>   asinh (Dual x x') = Dual (asinh x) (x' / sqrt (1 + x*x))
+>   acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x*x - 1)))
+>   atanh (Dual x x') = Dual (atanh x) (x' / (1 - x*x))
 
 Let us implement the function we considered earlier.
 
-> f :: Floating a => a -> a
 > f =  sqrt . (* 3) . sin
 
-We know its derivative and can also implement it directly in Haskell.
+The compiler can infer its type
 
-> f' :: Floating a => a -> a
+    [ghci]
+    :t f
+
+In [Haskell 98] only instances for *Float* and *Double* are defined
+for the class *Floating*; we have made *Dual* an instance which means
+we can now operate on values of this type as though, in some sense, they
+are the same as *Float* or *Double*.
+
+We know the derivative of the function and can also implement it
+directly in Haskell.
+
 > f' x = 3 * cos x / (2 * sqrt (3 * sin x)) 
 
 Now we can evaluate the function along with its automatically
