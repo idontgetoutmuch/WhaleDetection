@@ -317,6 +317,13 @@ it is amenable to this form of manipulation.
 Automatic Differentiation
 =========================
 
+Reverse Mode
+------------
+
+Traditionally, forward mode is introduced first as this is considered
+easier to understand. We introduce reverse mode first as it can be
+seen to be a generalization of backpropagation.
+
 Consider the function
 
 $$
@@ -330,29 +337,100 @@ import MLTalkDiagrams
 dia = example
 ```
 
+We can thus re-write our function as a sequence of simpler functions
+in which each function only depends on variables earlier in the
+sequence.
+
 $$
 \begin{aligned}
-\frac{\mathrm{d}u_7}{\mathrm{d}u_7} &= 1 \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1 \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_4} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\frac{\mathrm{d}u_6}{\mathrm{d}u_4} +
- \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\frac{\mathrm{d}u_5}{\mathrm{d}u_4} \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_3} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_3} \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_2} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_4} +
- \frac{\mathrm{d}u_7}{\mathrm{d}u_3}\frac{\mathrm{d}u_3}{\mathrm{d}u_4} \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_1} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_1}
+u_7    &= f_7(u_6, u_5, u_4, u_3, u_2, u_1) \\
+u_6    &= f_6(u_5, u_4, u_3, u_2, u_1) \\
+\ldots &= \ldots \\
+u_1    &= f_1(u_1)
 \end{aligned}
 $$
 
+$$
+\begin{aligned}
+\mathrm{d}u_7    &= \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
+                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 + 
+                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1 \\
+\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 + 
+                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1 \\
+\ldots           &= \ldots \\
+\mathrm{d}u_1    &= \frac{\partial f_1}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+
+In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1
+\end{aligned}
+$$
+
+Further $u_6$ does not depend on $u_5$ so we also have
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
+\end{aligned}
+$$
+
+Now things become more interesting as $u_6$ and $u_5$ both depend on
+$u_4$ and so the chain rule makes an explicit appearance
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_4} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\frac{\mathrm{d}u_6}{\mathrm{d}u_4} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\frac{\mathrm{d}u_5}{\mathrm{d}u_4} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\exp{u_4} +
+   \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\cos{u_5}
+\end{aligned}
+$$
+
+Carrying on
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_3} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_3} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_2} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_2} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_3}\frac{\mathrm{d}u_3}{\mathrm{d}u_2} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} + 2u_2\frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_1} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_1} \\
+&=\frac{\mathrm{d}u_7}{\mathrm{d}u_2}\exp{u_2}
+\end{aligned}
+$$
+
+Note that having worked from top to bottom (the forward sweep) in the
+graph to calculate the function itself, we have to work backwards from
+bottom to top (the backward sweep) to calculate the derivative.
+
+So provided we can translate our program into a call graph, we can
+apply this procedure to calculate the differential with the same
+complexity as the original program.
+
+The pictorial representation of an ANN is effectively the data flow
+graph of the cost function (without the final cost calculation itself)
+and its differential can be calculated as just being identical to
+backpropagation.
 
 Forward Mode
 ------------
 
-An alternative method for automic differentiation is called forward
+An alternative method for automatic differentiation is called forward
 mode and has a simple implementation. Let us illustrate this using
 [Haskell 98].
 
