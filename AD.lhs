@@ -2,6 +2,18 @@
 % Dominic Steinitz
 % 20th September 2013
 
+Preface
+=======
+
+The intended audience of this article is someone who knows something
+about Machine Learning and Artifical Neural Networks (ANNs) in
+particular and who recalls that fitting an ANN required a technique
+called backpropagation. The goal of this post is to refresh the
+reader's knowledge of ANNs and backpropagation and to show that the
+latter is merely a specialised version of *automatic
+differentiation*, a tool that all Machine Learning practitioners
+should know about and have in their toolkit.
+
 Introduction
 ============
 
@@ -44,7 +56,8 @@ error prone and the latter could easily generate something which would
 be even more complex and costly to evaluate than the original
 expression.
 
-The standard approach is to use a technique called backpropagation and
+The standard approach is to use a technique called
+[backpropagation](http://en.wikipedia.org/wiki/Backpropagation) and
 the understanding and application of this technique forms a large part
 of many machine learning lecture courses.
 
@@ -96,6 +109,20 @@ $$
 3 \cos(x) \cdot \frac{1}{2\sqrt{y}} =
 \frac{3\cos(x)}{2\sqrt{3\sin(x)}}
 $$
+
+Acknowledgements
+================
+
+Sadly I cannot recall all the sources I looked at in order to produce
+this article but I have made heavy use of the following.
+
+* Justin Domke's [blog](http://justindomke.wordpress.com)
+
+* Conal Elliot's [website](http://conal.net/papers/beautiful-differentiation)
+
+* Jerzy Karczmarczuk's [papers](https://karczmarczuk.users.greyc.fr/arpap)
+
+* The [Community Portal for Automatic Differentiation](http://www.autodiff.org)
 
 Neural Network Refresher
 ========================
@@ -570,4 +597,53 @@ calculated symbolically by hand.
 To see that we are *not* doing symbolic differentiation (it's easy to
 see we are not doing numerical differentiation) let us follow step
 through the actual evaluation.
+
+A Simple Application
+====================
+
+In order not to make this blog post too long let us apply AD to
+finding parameters for a simple regression. The application to ANNs is
+described in a previous [blog
+post](http://idontgetoutmuch.wordpress.com/2013/05/31/neural-networks-and-automated-differentiation-3/).
+
+Concluding Thoughts
+===================
+
+Efficiency
+----------
+
+Perhaps AD is underused because of efficiency?
+
+It seems that the Financial Services industry is aware that AD is
+*more* efficient than current practice albeit the technique is only
+slowly permeating. Order of magnitude improvements have been reported.
+
+* [Smoking Adjoints: fast evaluation of Greeks in Monte Carlo Calculations](http://www.risk.net/risk-magazine/technical-paper/1500261/smoking-adjoints-fast-monte-carlo-greeks)
+
+* [Adjoints and automatic (algorithmic) differentiation in computational finance](http://arxiv.org/pdf/1107.1831.pdf)
+
+Perhaps AD is slowly permeating into Machine Learning as well but
+there seem to be no easy to find benchmarks.
+
+* [Good Morning, Economics Blog](http://goodmorningeconomics.wordpress.com/2010/11/16/the-promise-of-bayesian-statistics-pt-2)
+
+* [Andrew Gelman's Blog](http://andrewgelman.com/2013/03/04/stan-in-l-a-this-wed-330pm/)
+
+Automatic Differentiation Tools
+-------------------------------
+
+If it were only possible to implement automatic differentiation in
+Haskell then its applicability would be somewhat limited. Fortunately
+this is not the case and it can be used in many languages.
+
+In general, there are three different approaches:
+
+* Operator overloading: available for Haskell and C++. See the Haskell
+[ad package](http://hackage.haskell.org/package/ad) and the C++
+[FADBAD](http://www.fadbad.com/fadbad.html) approach using templates.
+
+* Source to source translators: available for Fortran and C.
+
+* New languages with built-in AD primitives.
+
 
