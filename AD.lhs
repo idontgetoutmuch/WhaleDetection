@@ -124,6 +124,8 @@ this article but I have made heavy use of the following.
 
 * The [Community Portal for Automatic Differentiation](http://www.autodiff.org)
 
+* Alexey Radul's [blog](http://alexey.radul.name/ideas/2013/introduction-to-automatic-differentiation)
+
 Neural Network Refresher
 ========================
 
@@ -383,9 +385,9 @@ $$
                     \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
                     \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
                     \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
-                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 + 
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
                     \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1 \\
-\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 + 
+\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
                     \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
                     \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
                     \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
@@ -459,20 +461,22 @@ Forward Mode
 
 An alternative method for automatic differentiation is called forward
 mode and has a simple implementation. Let us illustrate this using
-[Haskell 98].
+[Haskell 98]. The actual implementation is about 20 lines of code.
 
   [Haskell 98]: http://www.haskell.org/onlinereport "haskell.org online report"
 
 First some boilerplate declarations that need not concern us further.
 
 > {-# LANGUAGE NoMonomorphismRestriction #-}
-> 
+>
 > module AD (
 >     Dual(..)
 >   , f
 >   , idD
+>   , cost
+>   , zs
 >   ) where
-> 
+>
 > default ()
 
  Let us define dual numbers
@@ -480,8 +484,8 @@ First some boilerplate declarations that need not concern us further.
 > data Dual = Dual Double Double
 >   deriving (Eq, Show)
 
-We can think of these pairs as first order polynomials in $\epsilon$,
-$x + \epsilon x'$ such that $\epsilon^2 = 0$
+We can think of these pairs as first order polynomials in the
+indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
 
 Thus, for example, we have
 
@@ -513,9 +517,9 @@ And using the example equations above we have
 
 $$
 \begin{align}
-\log(\sqrt (x + \epsilon x')) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
+\log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
                               &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
-                              &= log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
+                              &= \log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
 \end{align}
 $$
 
@@ -535,10 +539,23 @@ and *Floating*.
 
 > constD :: Double -> Dual
 > constD x = Dual x 0
-> 
+>
 > idD :: Double -> Dual
 > idD x = Dual x 1.0
-> 
+
+Let us implement the rules above by declaring *Dual* to be an instance
+of *Num*. A Haskell class such as *Num* simply states that it is
+possible to perform a (usually) related collection of operations on
+any type which is declared as an instance of that class. For example,
+*Integer* and *Double* are both types which are instances on *Num* and
+thus one can add, multiply, etc. values of these types (but note one
+cannot add an *Integer* to a *Double* without first converting a value
+of the former to a value of the latter).
+
+As an aside, we will never need the functions *signum* and *abs* and
+declare them as undefined; in a robust implementation we would specify
+an error if they were ever accidentally used.
+
 > instance Num Dual where
 >   fromInteger n             = constD $ fromInteger n
 >   (Dual x x') + (Dual y y') = Dual (x + y) (x' + y')
@@ -546,10 +563,20 @@ and *Floating*.
 >   negate (Dual x x')        = Dual (negate x) (negate x')
 >   signum _                  = undefined
 >   abs _                     = undefined
-> 
+
+We need to be able to perform division on *Dual* so we further declare
+it to be an instance of *Fractional*.
+
 > instance Fractional Dual where
 >   fromRational p = constD $ fromRational p
 >   recip (Dual x x') = Dual (1.0 / x) (-x' / (x * x))
+
+We want to be able to perform the same operations on Dual as we can on
+*Float* and *Double*. Thus we make *Dual* an instance of *Floating*
+which means we can now operate on values of this type as though, in
+some sense, they are the same as values of *Float* or *Double* (in
+[Haskell 98] only instances for *Float* and *Double* are defined for
+the class *Floating*).
 
 > instance Floating Dual where
 >   pi = constD pi
@@ -567,7 +594,8 @@ and *Floating*.
 >   acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x*x - 1)))
 >   atanh (Dual x x') = Dual (atanh x) (x' / (1 - x*x))
 
-Let us implement the function we considered earlier.
+That's all we need to do. Let us implement the function we considered
+earlier.
 
 > f =  sqrt . (* 3) . sin
 
@@ -576,15 +604,10 @@ The compiler can infer its type
     [ghci]
     :t f
 
-In [Haskell 98] only instances for *Float* and *Double* are defined
-for the class *Floating*; we have made *Dual* an instance which means
-we can now operate on values of this type as though, in some sense, they
-are the same as *Float* or *Double*.
-
 We know the derivative of the function and can also implement it
 directly in Haskell.
 
-> f' x = 3 * cos x / (2 * sqrt (3 * sin x)) 
+> f' x = 3 * cos x / (2 * sqrt (3 * sin x))
 
 Now we can evaluate the function along with its automatically
 calculated derivative and compare that with the derivative we
@@ -595,8 +618,21 @@ calculated symbolically by hand.
     f' 2
 
 To see that we are *not* doing symbolic differentiation (it's easy to
-see we are not doing numerical differentiation) let us follow step
+see we are not doing numerical differentiation) let us step
 through the actual evaluation.
+
+$$
+\begin{aligned}
+f\,\$\,\mathrm{idD}\,2 &\longrightarrow \mathrm{sqrt} \cdot \lambda x \rightarrow 3x \cdot \sin \$\,\mathrm{idD}\,2 \\
+&\longrightarrow \mathrm{sqrt} \cdot \lambda x \rightarrow 3x \cdot \sin \$\,\mathrm{Dual}\,2\,1 \\
+&\longrightarrow \mathrm{sqrt} \cdot \lambda x \rightarrow 3x\,\$\, \mathrm{Dual}\,\sin(2)\,\cos(2) \\
+&\longrightarrow \mathrm{sqrt} \,\$\, \mathrm{Dual}\,3\,0 \times \mathrm{Dual}\,\sin(2)\,\cos(2) \\
+&\longrightarrow \mathrm{sqrt} \,\$\, \mathrm{Dual}\,(3\sin(2))\, (3\cos(2) + 0\sin(2)) \\
+&\longrightarrow \mathrm{sqrt} \,\$\, \mathrm{Dual}\,(3\sin(2))\, (3\cos(2)) \\
+&\longrightarrow \mathrm{Dual}\,(\mathrm{sqrt} (3\sin(2)))\, (3\cos(2)) / (2\,\mathrm{sqrt}(3\sin(2))) \\
+&\longrightarrow 1.6516332160855343 -0.3779412091869595
+\end{aligned}
+$$
 
 A Simple Application
 ====================
@@ -604,7 +640,65 @@ A Simple Application
 In order not to make this blog post too long let us apply AD to
 finding parameters for a simple regression. The application to ANNs is
 described in a previous [blog
-post](http://idontgetoutmuch.wordpress.com/2013/05/31/neural-networks-and-automated-differentiation-3/).
+post](http://idontgetoutmuch.wordpress.com/2013/05/31/neural-networks-and-automated-differentiation-3/). Note
+that in a real application we would use the the Haskell
+[AD](http://hackage.haskell.org/package/ad) and furthermore use
+reverse AD as in this case it would be more efficient.
+
+First our cost function
+
+$$
+L(\boldsymbol{x}, \boldsymbol{y}, m, c) = \frac{1}{2n}\sum_{i=1}^n (y - (mx + c))^2
+$$
+
+> cost m c xs ys = (/ (2 * (fromIntegral $ length xs))) $
+>                  sum $
+>                  zipWith errSq xs ys
+>   where
+>     errSq x y = z * z
+>       where
+>         z = y - (m * x + c)
+
+    [ghci]
+    :t cost
+
+Some test data
+
+> xs = [1,2,3,4,5,6,7,8,9,10]
+> ys = [3,5,7,9,11,13,15,17,19,21]
+
+and a learning rate
+
+> gamma = 0.04
+
+Now we create a function of the two parameters in our model by
+applying the cost function to the data. We need the (partial)
+derivatives of both the slope and the offset.
+
+> g m c = cost m c xs ys
+
+Now we can take use our *Dual* numbers to calculate the required
+partial derivatives and update our estimates of the parameter. We
+create a stream of estimates.
+
+> zs = (0.1, 0.1) : map f zs
+>   where
+>
+>     deriv (Dual _ x') = x'
+>
+>     f (c, m) = (c - gamma * cDeriv, m - gamma * mDeriv)
+>       where
+>         cDeriv = deriv $ g (constD m) $ idD c
+>         mDeriv = deriv $ flip g (constD c) $ idD m
+
+And we can calculate the cost of each estimate to check our algorithm
+converges and then take the the estimated parameters when the change
+in cost per iteration has reached an acceptable level.
+
+    [ghci]
+    take 2 $ drop 1000 $ map (\(c, m) -> cost m c xs ys) zs
+    take 2 $ drop 1000 zs
+
 
 Concluding Thoughts
 ===================
@@ -642,8 +736,15 @@ In general, there are three different approaches:
 [ad package](http://hackage.haskell.org/package/ad) and the C++
 [FADBAD](http://www.fadbad.com/fadbad.html) approach using templates.
 
-* Source to source translators: available for Fortran and C.
+* Source to source translators: available for Fortran, C and other
+languages e.g., ADIFOR, TAPENADE and see the [wikipedia
+entry](http://en.wikipedia.org/wiki/Automatic_differentiation#Software)
+for a more comprehensive list.
 
-* New languages with built-in AD primitives.
+* New languages with built-in AD primitives. I have not listed any as
+it seems unlikely that anyone practicing Machine Learning would want
+to transfer their existing code to a research language. Maybe AD
+researchers could invest time in understanding what language feature
+improvements are needed to support AD natively in existing languages.
 
 
