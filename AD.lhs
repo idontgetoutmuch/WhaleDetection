@@ -490,7 +490,7 @@ indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
 Thus, for example, we have
 
 $$
-\begin{align}
+\begin{aligned}
 (x + \epsilon x') + (y + \epsilon y') &= ((x + y) + \epsilon (x' + y')) \\
 (x + \epsilon x')(y + \epsilon y') &= xy + \epsilon (xy' + x'y) \\
 \log (x + \epsilon x') &=
@@ -501,7 +501,7 @@ $$
 \sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
 \sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
 \ldots &= \ldots
-\end{align}
+\end{aligned}
 $$
 
 Notice that these equations implicitly encode the chain rule. For
@@ -516,11 +516,11 @@ $$
 And using the example equations above we have
 
 $$
-\begin{align}
+\begin{aligned}
 \log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
                               &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
                               &= \log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
-\end{align}
+\end{aligned}
 $$
 
 Notice that dual numbers carry around the calculation and the

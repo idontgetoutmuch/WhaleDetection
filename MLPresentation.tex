@@ -21,13 +21,50 @@
 \titlepage
 \end{frame}
 
+\section{Introduction}
 
-\begin{frame}{Introduction}
-What automatic differentiation isn't.
+\begin{frame}{The Goal}
+\begin{itemize}
+\item
+Wish to fit a model using training data
+\item
+As an example assume model is a neural network
+\item
+Need to minmise a cost function: predicted vs. actual
+\item
+Highly non-linear
+\item
+Use steepest descent
+\item
+To do this we need the derivative of the cost function wrt the parameters
+\end{itemize}
 \end{frame}
 
-\framedgraphic{Test}{diagrams/47765b66dd184563734f30899fe8fe0e.png}
+\begin{frame}{But Problems \ldots}
+\begin{itemize}
+\item
+Program calculates the non-linear function (not an explicit function)
+\item
+Function has lots of parameters
+\end{itemize}
+\end{frame}
 
-\framedgraphic{Test}{diagrams/2f3e3aed228a56c0d0d9ca086f05e1d5.png}
+\begin{frame}{Possible Solutions}
+Could try bumping
+$$
+\frac{\partial E(\ldots, w, \ldots)}{\partial w} \approx \frac{E(\ldots, w + \epsilon, \ldots) - E(\ldots, w, \ldots)}{\epsilon}
+$$
+\begin{itemize}
+\item
+But we have many thousands of parameters
+\item
+And we are using floating point arithmetic \ldots
+\end{frame}
+
+\framedgraphic{Test}{diagrams/13a2bd186a0e123f040da9491fa98684.png}
+
+\framedgraphic{Test}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
+
+\framedgraphic{Test}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
 
 \end{document}
