@@ -1,5 +1,6 @@
 \documentclass{beamer}
 \usepackage[latin1]{inputenc}
+\usepackage{listings}
 
 \newcommand {\framedgraphic}[2] {
     \begin{frame}{#1}
@@ -22,6 +23,16 @@
 \end{frame}
 
 \section{Introduction}
+
+\subsection{Preface}
+
+\begin{frame}{What This Talk Is About}
+Artifical Neural Networks are a well-established Machine Learning
+technique. Traditionally, fitting is done using a technique called
+backpropogation. This talk shows that this is just a specialised
+version of {\em automatic differentiation} and explains this apparently
+little known tool.
+\end{frame}
 
 \begin{frame}{The Goal}
 \begin{itemize}
@@ -49,7 +60,9 @@ Function has lots of parameters
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Possible Solutions}
+\subsection{Bumping}
+
+\begin{frame}{Bumping}
 Could try bumping
 $$
 \frac{\partial E(\ldots, w, \ldots)}{\partial w} \approx \frac{E(\ldots, w + \epsilon, \ldots) - E(\ldots, w, \ldots)}{\epsilon}
@@ -59,12 +72,85 @@ $$
 But we have many thousands of parameters
 \item
 And we are using floating point arithmetic \ldots
+\end{itemize}
 \end{frame}
 
-\framedgraphic{Test}{diagrams/13a2bd186a0e123f040da9491fa98684.png}
+\framedgraphic{Floating Point Errors}{diagrams/13a2bd186a0e123f040da9491fa98684.png}
+
+\subsection{Symbolic Differentiation}
+\begin{frame}[fragile]{Method}
+\begin{itemize}
+\item
+Turn program into mathematical function
+\item
+Compute the differential also as a function either by hand or using
+symbolic differentiation package.
+\end{itemize}
+
+But \ldots
+\end{frame}
+
+\begin{frame}[fragile]{Python Example}
+\ldots consider the following Python fragment
+\begin{lstlisting}[language=Python]
+import numpy as np
+
+def many_sines(x):
+    y = x
+    for i in range(1,7):
+        y = np.sin(x+y)
+    return y
+\end{lstlisting}
+
+When we unroll the loop we are actually evaluating
+
+$$
+f(x) = \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + x))))))
+$$
+
+\end{frame}
+
+\begin{frame}[fragile]{Blow Up}
+Now suppose we want to get the differential of this
+function. Symbolically this would be
+
+$$
+\begin{aligned}
+f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(2x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(2x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(2x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+x)
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Implications for ANN}
+\begin{itemize}
+\item
+The mathematical function for an ANN could easily be more
+complicated.
+\item
+Creating the derivative by hand is error prone.
+\item
+To use a symbolic differentiation requires some manipulation of the
+original program.
+\end{itemize}
+\end{frame}
+
+\section{Neural Network Refresher}
+
+\begin{frame}[fragile]{ANN: The People's Choice}
+Rather than using bumping or symbolic differentation, for ANN's we can
+use backpropagation, a technique which seems to be taught on many
+Machine Learning courses.
+\end{frame}
+
+\framedgraphic{Example Neural Net}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
+
+\section{Other}
 
 \framedgraphic{Test}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
-
-\framedgraphic{Test}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
 
 \end{document}
