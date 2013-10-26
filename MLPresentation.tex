@@ -27,7 +27,7 @@
 \subsection{Preface}
 
 \begin{frame}{What This Talk Is About}
-Artifical Neural Networks are a well-established Machine Learning
+Artificial Neural Networks are a well-established Machine Learning
 technique. Traditionally, fitting is done using a technique called
 backpropogation. This talk shows that this is just a specialised
 version of {\em automatic differentiation} and explains this apparently
@@ -41,7 +41,7 @@ Wish to fit a model using training data
 \item
 As an example assume model is a neural network
 \item
-Need to minmise a cost function: predicted vs. actual
+Need to minimise a cost function: predicted vs. actual
 \item
 Highly non-linear
 \item
@@ -139,15 +139,179 @@ original program.
 \end{itemize}
 \end{frame}
 
+\section{Chain Rule Refresher}
+
+\begin{frame}[fragile]{The Rule}
+$$
+(g \circ f)'(a) = g'(f(a))\cdot f'(a)
+$$
+
+in alternative notation
+
+$$
+\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x}(a) =
+\frac{\mathrm{d} g}{\mathrm{d} y}(f(a)) \frac{\mathrm{d} f}{\mathrm{d} x}(a)
+$$
+
+where $y = f(x)$. More suggestively, setting $h = g \circ f$, we can write
+
+$$
+\frac{\mathrm{d} h}{\mathrm{d} x} =
+\frac{\mathrm{d} h}{\mathrm{d} y} \frac{\mathrm{d} y}{\mathrm{d} x}
+$$
+
+where it is understood that $\mathrm{d} h / \mathrm{d} x$ and
+$\mathrm{d} y / \mathrm{d} x$ are evaluated at $a$ and $\mathrm{d} h /
+\mathrm{d} y$ is evaluated at $f(a)$.
+\end{frame}
+
+\begin{frame}[fragile]{Examples}
+Recall that if $f(x) = x^2$ then $f'(x) = 2x$. Suppose we only know
+this and we also know the chain rule then we can use this to calculate
+the derivative of $f(x) = x^4$.
+
+We have
+\begin{itemize}
+\item
+$f(x) = x^2$ and $g(y) = y^2$ thus $(g \circ f)(x) = x^4$
+\item
+$f'(x) = 2x$ and $g'(y) = 2y$
+\item
+The Chain Rule $(g \circ f)'(x) = g'(f(x))f'(x)$
+\item
+Thus $(g \circ f)'(x) = 2f(x)2x = 2x^22x = 4x^3$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Examples}
+$$
+\frac{\mathrm{d}}{\mathrm{d} x} \sqrt{3 \sin(x)} =
+\frac{\mathrm{d}}{\mathrm{d} x} (3 \sin(x)) \cdot \frac{\mathrm{d}}{\mathrm{d} y} \sqrt{y} =
+3 \cos(x) \cdot \frac{1}{2\sqrt{y}} =
+\frac{3\cos(x)}{2\sqrt{3\sin(x)}}
+$$
+\end{frame}
+
 \section{Neural Network Refresher}
 
-\begin{frame}[fragile]{ANN: The People's Choice}
+\begin{frame}[fragile]{ANN: The Classical Approach}
 Rather than using bumping or symbolic differentation, for ANN's we can
 use backpropagation, a technique which seems to be taught on many
 Machine Learning courses.
 \end{frame}
 
+\begin{frame}[fragile]{The Model}
+Here is our model, with $\boldsymbol{x}$ the input,
+$\hat{\boldsymbol{y}}$ the predicted output and $\boldsymbol{y}$ the
+actual output and $w^{(k)}$ the weights in the $k$-th layer. We have
+concretised the transfer function as $\tanh$ but it is quite popular
+to use the $\text{logit}$ function.
+\end{frame}
+
 \framedgraphic{Example Neural Net}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
+
+\begin{frame}[fragile]{The Model}
+$$
+\begin{aligned}
+a_i^{(1)}   &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j       & z_i^{(1)} &= \tanh(a_i^{(1)}) \\
+a_i^{(2)}   &= \sum_{j=0}^{N^{(2)}} w_{ij}^{(2)} z_j^{(1)} &  \dots     &= \ldots \\
+a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} & z_j^{(L-1)} &= \tanh(a_j^{(L-1)}) \\
+\hat{y}_i  &= \sum_{j=0}^{N^{(L)}} w_{ij}^{(L)} z_j^{(L-1)} \\
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+Loss function aka cost function
+
+$$
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
+$$
+
+To fit the model we need to find the weights which minimise the cost
+function.
+\end{frame}
+
+\begin{frame}[fragile]{Steepest Descent}
+For each weight, we find the derivative of the cost function wrt that
+weight and use that to step a small distance (the learning rate) in
+the direction which reduces the cost most quickly.
+
+In summary:
+
+$$
+w' = w - \gamma\nabla E(w)
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+In order to perform steepest descent, we need to calculate
+
+$$
+\Delta w_{ij} \equiv \frac{\partial E}{\partial w_{ij}}
+$$
+
+Applying the chain rule
+
+$$
+\Delta w_{ij} =
+\frac{\partial E}{\partial w_{ij}} =
+\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+Since
+
+$$
+a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
+$$
+
+we have
+
+$$
+\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
+\frac{\partial}{\partial w_{ij}^{(l)}}\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)} =
+z_i^{(l-1)}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+Defining
+
+$$
+\delta_j^{(l)} \equiv
+\frac{\partial E}{\partial a_j^{(l)}}
+$$
+
+we obtain
+
+$$
+\Delta w_{ij}^{(l)} =
+\frac{\partial E}{\partial w_{ij}^{(l)}} =
+\delta_j^{(l)} z_i^{(l-1)}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+Finding the $z_i$ for each layer is straightforward: we start with the
+inputs and propagate forward. In order to find the $\delta_j$ we need
+to start with the outputs a propagate backwards:
+
+For the output layer we have (since $\hat{y}_j = a_j$)
+$$
+\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial y_j} = \frac{\partial}{\partial y_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+For a hidden layer using the chain rule
+
+$$
+\delta_j^{(l-1)} = \frac{\partial E}{\partial a_j^{(l-1)}} =
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+$$
+\end{frame}
 
 \section{Other}
 
