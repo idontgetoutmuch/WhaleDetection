@@ -183,15 +183,6 @@ Thus $(g \circ f)'(x) = 2f(x)2x = 2x^22x = 4x^3$
 \end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{Examples}
-$$
-\frac{\mathrm{d}}{\mathrm{d} x} \sqrt{3 \sin(x)} =
-\frac{\mathrm{d}}{\mathrm{d} x} (3 \sin(x)) \cdot \frac{\mathrm{d}}{\mathrm{d} y} \sqrt{y} =
-3 \cos(x) \cdot \frac{1}{2\sqrt{y}} =
-\frac{3\cos(x)}{2\sqrt{3\sin(x)}}
-$$
-\end{frame}
-
 \section{Neural Network Refresher}
 
 \begin{frame}[fragile]{ANN: The Classical Approach}
@@ -313,8 +304,283 @@ $$
 $$
 \end{frame}
 
-\section{Other}
+\begin{frame}[fragile]{The Model}
+First consider
+
+$$
+\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+$$
+
+We have
+
+$$
+a_k^{(l)} = \sum_i w_{ki}^{(l)}z_i^{(l-1)} = \sum_i w_{ki}^{(l)} f(a_i^{(l-1)})
+$$
+
+so that
+
+$$
+\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\frac{\sum_i w_{ki}^{(l)} f(a_i^{(l-1)})}{\partial a_j^{(l-1)}} =
+w_{kj}^{(l)}\,f'(a_j^{(l-1)})
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+and thus
+
+$$
+\delta_j^{(l-1)} =
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) =
+f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Model}
+Summarising
+
+\begin{enumerate}
+\item
+We calculate all $a_j$ and $z_j$ for each layer starting with the
+input layer and propagating forward.
+\item
+We evaluate $\delta_j^{(L)}$ in the output layer using $\delta_j = \hat{y}_j - y_j$.
+\item
+We evaluate $\delta_j$ in each layer using $\delta_j^{(l-1)} =
+f'(a_j^{(l-1)})\sum_k \delta_k^{(l)} w_{kj}^{(l)}$ starting with the output
+layer and propagating backwards.
+\item
+Use $\partial E / \partial w_{ij}^{(l)} = \delta_j^{(l)} z_i^{(l-1)}$ to obtain the
+required derivatives in each layer.
+\end{enumerate}
+\end{frame}
+
+\section{Generalising}
+
+\begin{frame}[fragile]{The Model}
+\begin{itemize}
+\item
+Phew!
+\item
+But maybe following P\'{o}lya we can find a problem that is more
+general and use this not just for ANNs but for estimating parameters
+for other Machine Learning models.
+\item
+Idea: we drew the Neural Net as a graph maybe if we can draw a program as a
+graph we can calculate the derivative of the function which the
+program represents.
+\end{itemize}
+\end{frame}
+
+\subsection{Reverse Mode Automatic Differentiation}
+
+\begin{frame}[fragile]{The Model}
+Consider the function
+
+$$
+f(x) = \exp(\exp(x) + (\exp(x))^2) + \sin(\exp(x) + (\exp(x))^2)
+$$
+
+We can write this as a data flow graph...
+\end{frame}
 
 \framedgraphic{Test}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
+
+\begin{frame}[fragile]{Sequence of Functions}
+We can thus re-write our function as a sequence of simpler functions
+in which each function only depends on variables earlier in the
+sequence.
+
+$$
+\begin{aligned}
+u_7    &= f_7(u_6, u_5, u_4, u_3, u_2, u_1) \\
+u_6    &= f_6(u_5, u_4, u_3, u_2, u_1) \\
+\ldots &= \ldots \\
+u_2    &= f_2(u_1)
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials}
+$$
+\begin{aligned}
+\mathrm{d}u_7    &= \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
+                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1 \\
+\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1 \\
+\ldots           &= \ldots \\
+\mathrm{d}u_2    &= \frac{\partial f_2}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example}
+In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1
+\end{aligned}
+$$
+
+Further $u_6$ does not depend on $u_5$ so we also have
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example More Interesting}
+Now things become more interesting as $u_6$ and $u_5$ both depend on
+$u_4$ and so the chain rule makes an explicit appearance
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_4} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\frac{\mathrm{d}u_6}{\mathrm{d}u_4} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\frac{\mathrm{d}u_5}{\mathrm{d}u_4} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\exp{u_4} +
+   \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\cos{u_5}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example More Interesting}
+Carrying on
+
+$$
+\begin{aligned}
+\frac{\mathrm{d}u_7}{\mathrm{d}u_3} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_3} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_2} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_2} +
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_3}\frac{\mathrm{d}u_3}{\mathrm{d}u_2} \\
+&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} + 2u_2\frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
+\frac{\mathrm{d}u_7}{\mathrm{d}u_1} &=
+ \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_1} \\
+&=\frac{\mathrm{d}u_7}{\mathrm{d}u_2}\exp{u_2}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Reverse Mode Conclusions}
+\begin{itemize}
+\item
+Note that having worked from top to bottom (the forward sweep) in the
+graph to calculate the function itself, we have to work backwards from
+bottom to top (the backward sweep) to calculate the derivative.
+\item
+So provided we can translate our program into a call graph, we can
+apply this procedure to calculate the differential with the same
+complexity as the original program.
+\item
+The pictorial representation of an ANN is effectively the data flow
+graph of the cost function (without the final cost calculation itself)
+and its differential can be calculated as just being identical to
+backpropagation.
+\end{itemize}
+\end{frame}
+
+\subsection{Forward Mode Automatic Differentiation}
+
+\begin{frame}[fragile]{Dual Numbers}
+\begin{itemize}
+\item
+An alternative method for automatic differentiation is called forward
+mode and has a simple implementation. Let us illustrate this using
+[Haskell 98]. The actual implementation is about 20 lines of code.
+\item
+Let us define dual numbers
+
+\begin{lstlisting}[language=Haskell]
+data Dual = Dual Double Double
+  deriving (Eq, Show)
+\end{lstlisting}
+\item
+We can think of these pairs as first order polynomials in the
+indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers}
+Thus, for example, we have
+
+$$
+\begin{aligned}
+(x + \epsilon x') + (y + \epsilon y') &= ((x + y) + \epsilon (x' + y')) \\
+(x + \epsilon x')(y + \epsilon y') &= xy + \epsilon (xy' + x'y) \\
+\log (x + \epsilon x') &=
+\log x (1 + \epsilon \frac {x'}{x}) =
+\log x + \epsilon\frac{x'}{x} \\
+\sqrt{(x + \epsilon x')} &=
+\sqrt{x(1 + \epsilon\frac{x'}{x})} =
+\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
+\ldots &= \ldots
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers and The Chain Rule}
+Notice that these equations implicitly encode the chain rule. For
+example, we know, using the chain rule, that
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} x}\log(\sqrt x) =
+\frac{1}{\sqrt x}\frac{1}{2}x^{-1/2} =
+\frac{1}{2x}
+$$
+
+And using the example equations above we have
+
+$$
+\begin{aligned}
+\log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
+                              &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
+                              &= \log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers Example}
+Notice that dual numbers carry around the calculation and the
+derivative of the calculation.
+
+\begin{itemize}
+\item
+To actually evaluate $\log(\sqrt{x})$
+at a particular value, say 2, we plug in 2 for $x$ and 1 for $x'$
+$$
+\log (\sqrt{2 + \epsilon 1}) = \log(\sqrt{2}) + \epsilon\frac{1}{4}
+$$
+\item
+Thus the derivative of $\log(\sqrt{x})$ at 2 is $1/4$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers are Numbers}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+instance Num Dual where
+  fromInteger n             = constD (fromInteger n)
+  (Dual x x') + (Dual y y') = Dual (x + y) (x' + y')
+  (Dual x x') * (Dual y y') = Dual (x * y) (x * y' + y * x')
+  negate (Dual x x')        = Dual (negate x) (negate x')
+  signum _                  = undefined
+  abs _                     = undefined
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
 
 \end{document}
