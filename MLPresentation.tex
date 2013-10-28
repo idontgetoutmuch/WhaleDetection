@@ -197,34 +197,42 @@ Thus $(g \circ f)'(x) = 2f(x)2x = 2x^22x = 4x^3$
 
 \section{Neural Network Refresher}
 
+\subsection{The Model}
+
 \begin{frame}[fragile]{ANN: The Classical Approach}
 Rather than using bumping or symbolic differentation, for ANN's we can
 use backpropagation, a technique which seems to be taught on many
 Machine Learning courses.
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
-Here is our model, with $\boldsymbol{x}$ the input,
-$\hat{\boldsymbol{y}}$ the predicted output and $\boldsymbol{y}$ the
-actual output and $w^{(k)}$ the weights in the $k$-th layer. We have
-concretised the transfer function as $\tanh$ but it is quite popular
-to use the $\text{logit}$ function.
-\end{frame}
-
 \framedgraphic{Example Neural Net}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
 
 \begin{frame}[fragile]{The Model}
+In symbols
+\begin{itemize}
+\item
+$\boldsymbol{x}$ the input
+\item
+$\hat{\boldsymbol{y}}$ the predicted output
+\item
+$\boldsymbol{y}$ the actual output
+\item
+$w^{(k)}$ the weights in the $k$-th layer.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{The Layers}
 $$
 \begin{aligned}
-a_i^{(1)}   &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j       & z_i^{(1)} &= \tanh(a_i^{(1)}) \\
+a_i^{(1)}   &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j       & z_i^{(1)} &= f(a_i^{(1)}) \\
 a_i^{(2)}   &= \sum_{j=0}^{N^{(2)}} w_{ij}^{(2)} z_j^{(1)} &  \dots     &= \ldots \\
-a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} & z_j^{(L-1)} &= \tanh(a_j^{(L-1)}) \\
+a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} & z_j^{(L-1)} &= f(a_j^{(L-1)}) \\
 \hat{y}_i  &= \sum_{j=0}^{N^{(L)}} w_{ij}^{(L)} z_j^{(L-1)} \\
 \end{aligned}
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{The Cost Function}
 Loss function aka cost function
 
 $$
@@ -234,6 +242,8 @@ $$
 To fit the model we need to find the weights which minimise the cost
 function.
 \end{frame}
+
+\subsection{Backpropagation}
 
 \begin{frame}[fragile]{Steepest Descent}
 For each weight, we find the derivative of the cost function wrt that
@@ -247,7 +257,7 @@ w' = w - \gamma\nabla E(w)
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{Derivatives via Error Signals}
 In order to perform steepest descent, we need to calculate
 
 $$
@@ -259,36 +269,29 @@ Applying the chain rule
 $$
 \Delta w_{ij} =
 \frac{\partial E}{\partial w_{ij}} =
-\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}}
+\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}} =
+\delta_j^{(l)}\frac{\partial a_i}{\partial w_{ij}}
 $$
-\end{frame}
-
-\begin{frame}[fragile]{The Model}
-Since
-
-$$
-a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
-$$
-
-we have
-
-$$
-\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
-\frac{\partial}{\partial w_{ij}^{(l)}}\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)} =
-z_i^{(l-1)}
-$$
-\end{frame}
-
-\begin{frame}[fragile]{The Model}
-Defining
+Where the error signal is defined as
 
 $$
 \delta_j^{(l)} \equiv
 \frac{\partial E}{\partial a_j^{(l)}}
 $$
+\end{frame}
 
-we obtain
-
+\begin{frame}[fragile]{Derivatives via Error Signals}
+Since
+$$
+a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
+$$
+we have
+$$
+\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
+\frac{\partial}{\partial w_{ij}^{(l)}}\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)} =
+z_i^{(l-1)}
+$$
+Using the definition of the error signal
 $$
 \Delta w_{ij}^{(l)} =
 \frac{\partial E}{\partial w_{ij}^{(l)}} =
@@ -296,28 +299,35 @@ $$
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{The Backpropagation Algorithm}
+\begin{itemize}
+\item
 Finding the $z_i$ for each layer is straightforward: we start with the
-inputs and propagate forward. In order to find the $\delta_j$ we need
-to start with the outputs a propagate backwards:
-
+inputs and propagate forward.
+\item
+In order to find the $\delta_j$ we need
+to start with the outputs a propagate backwards.
+\item
 For the output layer we have (since $\hat{y}_j = a_j$)
 $$
-\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial y_j} = \frac{\partial}{\partial y_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
+\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial \hat{y}_j} = \frac{\partial}{\partial \hat{y}_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
 $$
+\end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
 For a hidden layer using the chain rule
 
 $$
 \delta_j^{(l-1)} = \frac{\partial E}{\partial a_j^{(l-1)}} =
-\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial
+  a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\sum_k \delta_k^{(l)}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
-First consider
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
+We therefore consider in more detail
 
 $$
 \frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
@@ -338,18 +348,21 @@ w_{kj}^{(l)}\,f'(a_j^{(l-1)})
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
 and thus
 
 $$
-\delta_j^{(l-1)} =
-\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
-\sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) =
-f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
+\begin{aligned}
+\delta_j^{(l-1)} &=
+\sum_k \delta_k^{(l)}\frac{\partial
+  a_k^{(l)}}{\partial a_j^{(l-1)}} \\
+&= \sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) \\
+&= f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
+\end{aligned}
 $$
 \end{frame}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{Backpropagation in Full}
 Summarising
 
 \begin{enumerate}
@@ -368,9 +381,9 @@ required derivatives in each layer.
 \end{enumerate}
 \end{frame}
 
-\section{Generalising}
+\section{Automatic Differentiation}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{Hard Work --- Can We Generalise}
 \begin{itemize}
 \item
 Phew!
@@ -385,9 +398,9 @@ program represents.
 \end{itemize}
 \end{frame}
 
-\subsection{Reverse Mode Automatic Differentiation}
+\subsection{Reverse Mode}
 
-\begin{frame}[fragile]{The Model}
+\begin{frame}[fragile]{A Simpler Example}
 Consider the function
 
 $$
@@ -504,7 +517,7 @@ backpropagation.
 \end{itemize}
 \end{frame}
 
-\subsection{Forward Mode Automatic Differentiation}
+\subsection{Forward Mode}
 
 \begin{frame}[fragile]{Dual Numbers}
 \begin{itemize}
@@ -664,6 +677,102 @@ f (\mathrm{Dual}\,2\,1) &\longrightarrow (\lambda z \rightarrow z
 &\longrightarrow (\mathrm{Dual}\,16\,32)\\
 \end{aligned}
 $$
+\end{frame}
+
+\section{Application}
+
+\begin{frame}[fragile]{Linear Regression}
+$$
+L(\boldsymbol{x}, \boldsymbol{y}, m, c) = \frac{1}{2n}\sum_{i=1}^n (y - (mx + c))^2
+$$
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+cost m c xs ys = (sum (zipWith errSq xs ys)) /
+                 (2 * (fromIntegral (length xs)))
+  where
+    errSq x y = z * z
+      where
+        z = y - (m * x + c)
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Linear Regression}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+g m c = cost m c xs ys
+
+zs = (0.1, 0.1) : map f zs
+  where
+
+    deriv (Dual _ x') = x'
+
+    f (c, m) = (c - gamma * cDeriv, m - gamma * mDeriv)
+      where
+        cDeriv = deriv (g (Dual m 0) (Dual c 1))
+        mDeriv = deriv (flip g (Dual c 0) (Dual m 1))
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Linear Regression}
+\begin{scriptsize}
+\begin{lstlisting}
+ghci> take 10 zs
+  [(0.1,0.1),
+   (0.554,3.2240000000000006),
+   (0.30255999999999983,1.4371599999999995),
+   (0.4542824,2.4573704000000003),
+   (0.3754896159999999,1.8730778559999997),
+   (0.42839290304,2.2059302422400004),
+   (0.4059525336255999,2.0145512305216),
+   (0.42651316156582386,2.1228327781207037),
+   (0.42242942391663607,2.059837404270339),
+   (0.43236801802049607,2.0947533284323567)]
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\section{Concluding Thoughts}
+
+\begin{frame}[fragile]{Efficiency}
+Perhaps AD is underused because of efficiency?
+
+It seems that the Financial Services industry is aware that AD is {\em
+  more} efficient than current practice. Order of magnitude
+improvements have been reported.
+\begin{itemize}
+\item
+Smoking Adjoints: fast evaluation of Greeks in Monte Carlo Calculations
+\item
+Adjoints and automatic (algorithmic) differentiation in computational finance
+\end{itemize}
+
+Perhaps AD is slowly permeating into Machine Learning as well but
+there seem to be no easy to find benchmarks.
+
+\begin{itemize}
+\item
+Good Morning, Economics Blog
+\item
+Andrew Gelman's Blog
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Tools}
+  If it were only possible to implement automatic differentiation in
+  Haskell then its applicability would be somewhat
+  limited. Fortunately this is not the case and it can be used in many
+  languages. In general, there are three different approaches:
+
+\begin{itemize}
+\item Operator overloading: available for Haskell and C++. See the
+  Haskell ad package and the C++ FADBAD approach using templates.
+\item Source to source translators: available for Fortran, C and other
+  languages e.g., ADIFOR, TAPENADE and see the wikipedia entry for a
+  more comprehensive list.
+\item New languages with built-in AD primitives.
+\end{itemize}
 \end{frame}
 
 \end{document}
