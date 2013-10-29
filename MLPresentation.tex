@@ -138,14 +138,11 @@ $$
 
 \begin{frame}[fragile]{Implications for ANN}
 \begin{itemize}
-\item
-The mathematical function for an ANN could easily be more
-complicated.
-\item
-Creating the derivative by hand is error prone.
-\item
-To use a symbolic differentiation requires some manipulation of the
-original program.
+\item The mathematical function for an ANN could easily be more
+  complicated.
+\item Creating the derivative by hand is error prone.
+\item To use a symbolic differentiation package (usually) requires
+  some manipulation of the original program.
 \end{itemize}
 \end{frame}
 
@@ -210,14 +207,11 @@ Machine Learning courses.
 \begin{frame}[fragile]{The Model}
 In symbols
 \begin{itemize}
-\item
-$\boldsymbol{x}$ the input
-\item
-$\hat{\boldsymbol{y}}$ the predicted output
-\item
-$\boldsymbol{y}$ the actual output
-\item
-$w^{(k)}$ the weights in the $k$-th layer.
+\item $\boldsymbol{x}$ the input
+\item $\hat{\boldsymbol{y}}$ the predicted output
+\item $\boldsymbol{y}$ the actual output
+\item $w^{(k)}$ the weights in the $k$-th layer.
+\item $f$ is the transfer function.
 \end{itemize}
 \end{frame}
 
@@ -272,7 +266,7 @@ $$
 \frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}} =
 \delta_j^{(l)}\frac{\partial a_i}{\partial w_{ij}}
 $$
-Where the error signal is defined as
+Where the error signal $\delta_j^{(l)}$ is defined as
 
 $$
 \delta_j^{(l)} \equiv
@@ -452,7 +446,7 @@ In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
 
 $$
 \begin{aligned}
-\frac{\mathrm{d}u_7}{\mathrm{d}u_6} &= 1
+\frac{\partial u_7}{\partial u_6} &= 1
 \end{aligned}
 $$
 
@@ -460,22 +454,22 @@ Further $u_6$ does not depend on $u_5$ so we also have
 
 $$
 \begin{aligned}
-\frac{\mathrm{d}u_7}{\mathrm{d}u_5} &= 1 \\
+\frac{\partial u_7}{\partial u_5} &= 1 \\
 \end{aligned}
 $$
 \end{frame}
 
 \begin{frame}[fragile]{Differentials Example More Interesting}
 Now things become more interesting as $u_6$ and $u_5$ both depend on
-$u_4$ and so the chain rule makes an explicit appearance
+$u_4$.
 
 $$
 \begin{aligned}
-\frac{\mathrm{d}u_7}{\mathrm{d}u_4} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\frac{\mathrm{d}u_6}{\mathrm{d}u_4} +
- \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\frac{\mathrm{d}u_5}{\mathrm{d}u_4} \\
-&= \frac{\mathrm{d}u_7}{\mathrm{d}u_6}\exp{u_4} +
-   \frac{\mathrm{d}u_7}{\mathrm{d}u_5}\cos{u_5}
+\frac{\partial u_7}{\partial u_4} &=
+ \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4} \\
+&= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
+   \frac{\partial u_7}{\partial u_5}\cos{u_5}
 \end{aligned}
 $$
 \end{frame}
