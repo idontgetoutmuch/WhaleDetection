@@ -1,6 +1,7 @@
 \documentclass{beamer}
 \usepackage[latin1]{inputenc}
 \usepackage{listings}
+\usepackage{color}
 
 \newcommand {\framedgraphic}[2] {
     \begin{frame}{#1}
@@ -404,7 +405,7 @@ $$
 We can write this as a data flow graph...
 \end{frame}
 
-\framedgraphic{Test}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
+\framedgraphic{Data Flow Graph}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
 
 \begin{frame}[fragile]{Sequence of Functions}
 We can thus re-write our function as a sequence of simpler functions
@@ -474,21 +475,19 @@ $$
 $$
 \end{frame}
 
-\begin{frame}[fragile]{Differentials Example More Interesting}
-Carrying on
-
+\begin{frame}[fragile]{Differentials Example Carrying On}
 $$
 \begin{aligned}
-\frac{\mathrm{d}u_7}{\mathrm{d}u_3} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_3} \\
-&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_2} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_4}\frac{\mathrm{d}u_4}{\mathrm{d}u_2} +
- \frac{\mathrm{d}u_7}{\mathrm{d}u_3}\frac{\mathrm{d}u_3}{\mathrm{d}u_2} \\
-&= \frac{\mathrm{d}u_7}{\mathrm{d}u_4} + 2u_2\frac{\mathrm{d}u_7}{\mathrm{d}u_4} \\
-\frac{\mathrm{d}u_7}{\mathrm{d}u_1} &=
- \frac{\mathrm{d}u_7}{\mathrm{d}u_2}\frac{\mathrm{d}u_2}{\mathrm{d}u_1} \\
-&=\frac{\mathrm{d}u_7}{\mathrm{d}u_2}\exp{u_2}
+\frac{\partial u_7}{\partial u_3} &=
+ \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} \\
+&= \frac{\partial u_7}{\partial u_4} \\
+\frac{\partial u_7}{\partial u_2} &=
+ \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_2} +
+ \frac{\partial u_7}{\partial u_3}\frac{\partial u_3}{\partial u_2} \\
+&= \frac{\partial u_7}{\partial u_4} + 2u_2\frac{\partial u_7}{\partial u_4} \\
+\frac{\partial u_7}{\partial u_1} &=
+ \frac{\partial u_7}{\partial u_2}\frac{\partial u_2}{\partial u_1} \\
+&=\frac{\partial u_7}{\partial u_2}\exp{u_2}
 \end{aligned}
 $$
 \end{frame}
@@ -500,7 +499,7 @@ Note that having worked from top to bottom (the forward sweep) in the
 graph to calculate the function itself, we have to work backwards from
 bottom to top (the backward sweep) to calculate the derivative.
 \item
-So provided we can translate our program into a call graph, we can
+So provided we can translate our program into a data flow graph, we can
 apply this procedure to calculate the differential with the same
 complexity as the original program.
 \item
@@ -518,7 +517,7 @@ backpropagation.
 \item
 An alternative method for automatic differentiation is called forward
 mode and has a simple implementation. Let us illustrate this using
-[Haskell 98]. The actual implementation is about 20 lines of code.
+Haskell. The actual implementation is about 20 lines of code.
 \item
 Let us define dual numbers
 
@@ -766,6 +765,15 @@ Andrew Gelman's Blog
   languages e.g., ADIFOR, TAPENADE and see the wikipedia entry for a
   more comprehensive list.
 \item New languages with built-in AD primitives.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Resources}
+\begin{itemize}
+\item \textcolor{blue}{http://idontgetoutmuch.wordpress.com}
+\item
+  \textcolor{blue}{http://en.wikipedia.org/wiki/Automatic\_differentiation}
+\item \textcolor{blue}{http://www.autodiff.org}
 \end{itemize}
 \end{frame}
 
