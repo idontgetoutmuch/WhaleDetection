@@ -1,0 +1,784 @@
+\documentclass{beamer}
+\usepackage[latin1]{inputenc}
+\usepackage{listings}
+\usepackage{color}
+
+\newcommand {\framedgraphic}[2] {
+    \begin{frame}{#1}
+        \begin{center}
+            \includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{#2}
+        \end{center}
+    \end{frame}
+}
+
+\usetheme{Warsaw}
+\title[Automatic differentiation]{Automatic Differentiation\\A Criminally Underused Tool?}
+\author{Dominic Steinitz}
+\institute{Kingston University}
+\date{15 September 2013}
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\section*{Outline}
+    \frame{\tableofcontents}
+
+\section{Introduction}
+
+\subsection{What This Talk is About}
+
+\begin{frame}{What This Talk Is About}
+
+  \begin{itemize}
+  \item Artificial Neural Networks (ANNs) are a well-established
+    Machine Learning (ML) technique.
+  \item Traditionally, training ANNs is done using a technique called
+    backpropogation.
+  \item It turns out that this is just a specialised version of
+    Reverse Automatic Differentiation (RAD) and steepest descent.
+  \item This talk explains the theory behind RAD and develops an
+    implementation in Haskell of Forward Automatic Differentiation
+    (FAD) with a brief application to another ML technique:
+    regression.
+  \end{itemize}
+
+\end{frame}
+
+\section{A Neural Network Refresher}
+
+\subsection{The Model}
+
+
+\framedgraphic{Example Neural Net}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
+
+\begin{frame}[fragile]{The Model}
+In symbols
+\begin{itemize}
+\item $\boldsymbol{x}$ the input
+\item $\hat{\boldsymbol{y}}$ the predicted output
+\item $\boldsymbol{y}$ the actual output
+\item $w^{(k)}$ the weights in the $k$-th layer.
+\item $f$ is the transfer function.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{The Layers}
+$$
+\begin{aligned}
+a_i^{(1)}   &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j       & z_i^{(1)} &= f(a_i^{(1)}) \\
+a_i^{(2)}   &= \sum_{j=0}^{N^{(2)}} w_{ij}^{(2)} z_j^{(1)} &  \dots     &= \ldots \\
+a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} & z_j^{(L-1)} &= f(a_j^{(L-1)}) \\
+\hat{y}_i  &= \sum_{j=0}^{N^{(L)}} w_{ij}^{(L)} z_j^{(L-1)} \\
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Cost Function}
+Loss function aka cost function
+
+$$
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
+$$
+
+To fit the model we need to find the weights which minimise the cost
+function.
+\end{frame}
+
+\subsection{Backpropagation}
+
+\begin{frame}[fragile]{Steepest Descent}
+For each weight, we find the derivative of the cost function wrt that
+weight and use that to step a small distance (the learning rate) in
+the direction which reduces the cost most quickly.
+
+In summary:
+
+$$
+w' = w - \gamma\nabla E(w)
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Derivatives via Error Signals}
+In order to perform steepest descent, we need to calculate
+
+$$
+\Delta w_{ij} \equiv \frac{\partial E}{\partial w_{ij}}
+$$
+
+Applying the chain rule
+
+$$
+\Delta w_{ij} =
+\frac{\partial E}{\partial w_{ij}} =
+\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}} =
+\delta_j^{(l)}\frac{\partial a_i}{\partial w_{ij}}
+$$
+Where the error signal $\delta_j^{(l)}$ is defined as
+
+$$
+\delta_j^{(l)} \equiv
+\frac{\partial E}{\partial a_j^{(l)}}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Derivatives via Error Signals}
+Since
+$$
+a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
+$$
+we have
+$$
+\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
+\frac{\partial}{\partial w_{ij}^{(l)}}\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)} =
+z_i^{(l-1)}
+$$
+Using the definition of the error signal
+$$
+\Delta w_{ij}^{(l)} =
+\frac{\partial E}{\partial w_{ij}^{(l)}} =
+\delta_j^{(l)} z_i^{(l-1)}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{The Backpropagation Algorithm}
+\begin{itemize}
+\item
+Finding the $z_i$ for each layer is straightforward: we start with the
+inputs and propagate forward.
+\item
+In order to find the $\delta_j$ we need
+to start with the outputs a propagate backwards.
+\item
+For the output layer we have (since $\hat{y}_j = a_j$)
+$$
+\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial \hat{y}_j} = \frac{\partial}{\partial \hat{y}_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
+$$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
+For a hidden layer using the chain rule
+
+$$
+\delta_j^{(l-1)} = \frac{\partial E}{\partial a_j^{(l-1)}} =
+\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial
+  a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\sum_k \delta_k^{(l)}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
+We therefore consider in more detail
+
+$$
+\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
+$$
+
+We have
+
+$$
+a_k^{(l)} = \sum_i w_{ki}^{(l)}z_i^{(l-1)} = \sum_i w_{ki}^{(l)} f(a_i^{(l-1)})
+$$
+
+so that
+
+$$
+\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
+\frac{\sum_i w_{ki}^{(l)} f(a_i^{(l-1)})}{\partial a_j^{(l-1)}} =
+w_{kj}^{(l)}\,f'(a_j^{(l-1)})
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Backpropagation for Hidden Layers}
+and thus
+
+$$
+\begin{aligned}
+\delta_j^{(l-1)} &=
+\sum_k \delta_k^{(l)}\frac{\partial
+  a_k^{(l)}}{\partial a_j^{(l-1)}} \\
+&= \sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) \\
+&= f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Backpropagation in Full}
+Summarising
+
+\begin{enumerate}
+\item
+We calculate all $a_j$ and $z_j$ for each layer starting with the
+input layer and propagating forward.
+\item
+We evaluate $\delta_j^{(L)}$ in the output layer using $\delta_j = \hat{y}_j - y_j$.
+\item
+We evaluate $\delta_j$ in each layer using $\delta_j^{(l-1)} =
+f'(a_j^{(l-1)})\sum_k \delta_k^{(l)} w_{kj}^{(l)}$ starting with the output
+layer and propagating backwards.
+\item
+Use $\partial E / \partial w_{ij}^{(l)} = \delta_j^{(l)} z_i^{(l-1)}$ to obtain the
+required derivatives in each layer.
+\end{enumerate}
+\end{frame}
+
+\section{Not Sure Yet}
+
+\begin{frame}[fragile]{ANN: The Classical Approach}
+Rather than using bumping or symbolic differentation, for ANN's we can
+use backpropagation, a technique which seems to be taught on many
+Machine Learning courses.
+\end{frame}
+
+\begin{frame}{The Goal}
+
+  \begin{itemize}
+  \item Wish to fit a model using training data
+  \item As an example assume model is a neural network
+  \item Need to minimise a cost function: predicted vs. actual
+  \item Highly non-linear
+  \item Use steepest descent
+  \item To do this we need the derivative of the cost function wrt the
+    parameters
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{But Problems \ldots}
+\begin{itemize}
+\item
+Program calculates the non-linear function (not an explicit function)
+\item
+Function has lots of parameters
+\end{itemize}
+\end{frame}
+
+\section{Differentiation Methods}
+
+\subsection{Bumping}
+
+\begin{frame}{Bumping}
+Could try bumping
+$$
+\frac{\partial E(\ldots, w, \ldots)}{\partial w} \approx \frac{E(\ldots, w + \epsilon, \ldots) - E(\ldots, w, \ldots)}{\epsilon}
+$$
+\begin{itemize}
+\item
+But we have many thousands of parameters
+\item
+And we are using floating point arithmetic \ldots
+\end{itemize}
+\end{frame}
+
+\framedgraphic{Floating Point Errors}{diagrams/13a2bd186a0e123f040da9491fa98684.png}
+
+\subsection{Symbolic Differentiation}
+\begin{frame}[fragile]{Symbolic Differentiation}
+\begin{itemize}
+\item
+Turn program into mathematical function
+\item
+Compute the differential also as a function either by hand or using
+symbolic differentiation package.
+\end{itemize}
+
+But \ldots
+\end{frame}
+
+\begin{frame}[fragile]{Python Example}
+\ldots consider the following Python fragment
+\begin{lstlisting}[language=Python]
+import numpy as np
+
+def many_sines(x):
+    y = x
+    for i in range(1,7):
+        y = np.sin(x+y)
+    return y
+\end{lstlisting}
+
+When we unroll the loop we are actually evaluating
+
+$$
+f(x) = \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + \sin(x + x))))))
+$$
+
+\end{frame}
+
+\begin{frame}[fragile]{Blow Up}
+Now suppose we want to get the differential of this
+function. Symbolically this would be
+
+$$
+\begin{aligned}
+f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(2x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(2x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(2x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+1)\cdot \\
+      &\phantom{=} \cos(\sin(\sin(\sin(\sin(\sin(2x)+x)+x)+x)+x)+x)
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Implications for ANN}
+\begin{itemize}
+\item The mathematical function for an ANN could easily be more
+  complicated.
+\item Creating the derivative by hand is error prone.
+\item To use a symbolic differentiation package (usually) requires
+  some manipulation of the original program.
+\end{itemize}
+\end{frame}
+
+\section{Chain Rule Refresher}
+
+\begin{frame}[fragile]{The Rule}
+\begin{itemize}
+\item
+In Lagrange's notation
+$$
+(g \circ f)'(a) = g'(f(a))\cdot f'(a)
+$$
+\item
+In Leibniz' notation
+$$
+\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x}(a) =
+\frac{\mathrm{d} g}{\mathrm{d} y}(f(a)) \frac{\mathrm{d} f}{\mathrm{d} x}(a)
+$$
+where $y = f(x)$.
+\item
+More suggestively, setting $h = g \circ f$, we can write
+$$
+\frac{\mathrm{d} h}{\mathrm{d} x} =
+\frac{\mathrm{d} h}{\mathrm{d} y} \frac{\mathrm{d} y}{\mathrm{d} x}
+$$
+where it is understood that $\mathrm{d} h / \mathrm{d} x$ and
+$\mathrm{d} y / \mathrm{d} x$ are evaluated at $a$ and $\mathrm{d} h /
+\mathrm{d} y$ is evaluated at $f(a)$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Example}
+Recall that if $f(x) = x^2$ then $f'(x) = 2x$. Suppose we only know
+this and we also know the chain rule then we can use this to calculate
+the derivative of $f(x) = x^4$.
+
+We have
+\begin{itemize}
+\item
+$f(x) = x^2$ and $g(y) = y^2$ thus $(g \circ f)(x) = x^4$
+\item
+$f'(x) = 2x$ and $g'(y) = 2y$
+\item
+The Chain Rule $(g \circ f)'(x) = g'(f(x))f'(x)$
+\item
+Thus $(g \circ f)'(x) = 2f(x)2x = 2x^22x = 4x^3$
+\end{itemize}
+\end{frame}
+
+
+\section{Automatic Differentiation}
+
+\begin{frame}[fragile]{Hard Work --- Can We Generalise}
+\begin{itemize}
+\item
+Phew!
+\item
+But maybe following P\'{o}lya we can find a problem that is more
+general and use this not just for ANNs but for estimating parameters
+for other Machine Learning models.
+\item
+Idea: we drew the Neural Net as a graph maybe if we can draw a program as a
+graph we can calculate the derivative of the function which the
+program represents.
+\end{itemize}
+\end{frame}
+
+\subsection{Reverse Mode}
+
+\begin{frame}[fragile]{A Simpler Example}
+Consider the function
+
+$$
+f(x) = \exp(\exp(x) + (\exp(x))^2) + \sin(\exp(x) + (\exp(x))^2)
+$$
+
+We can write this as a data flow graph...
+\end{frame}
+
+\framedgraphic{Data Flow Graph}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
+
+\begin{frame}[fragile]{Sequence of Functions}
+We can thus re-write our function as a sequence of simpler functions
+in which each function only depends on variables earlier in the
+sequence.
+
+$$
+\begin{aligned}
+u_7    &= f_7(u_6, u_5, u_4, u_3, u_2, u_1) \\
+u_6    &= f_6(u_5, u_4, u_3, u_2, u_1) \\
+\ldots &= \ldots \\
+u_2    &= f_2(u_1)
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials}
+$$
+\begin{aligned}
+\mathrm{d}u_7    &= \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
+                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1 \\
+\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1 \\
+\ldots           &= \ldots \\
+\mathrm{d}u_2    &= \frac{\partial f_2}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example}
+In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
+
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_6} &= 1
+\end{aligned}
+$$
+
+Further $u_6$ does not depend on $u_5$ so we also have
+
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_5} &= 1 \\
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example More Interesting}
+Now things become more interesting as $u_6$ and $u_5$ both depend on
+$u_4$.
+
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_4} &=
+ \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4} \\
+&= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
+   \frac{\partial u_7}{\partial u_5}\cos{u_5}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Differentials Example Carrying On}
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_3} &=
+ \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} \\
+&= \frac{\partial u_7}{\partial u_4} \\
+\frac{\partial u_7}{\partial u_2} &=
+ \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_2} +
+ \frac{\partial u_7}{\partial u_3}\frac{\partial u_3}{\partial u_2} \\
+&= \frac{\partial u_7}{\partial u_4} + 2u_2\frac{\partial u_7}{\partial u_4} \\
+\frac{\partial u_7}{\partial u_1} &=
+ \frac{\partial u_7}{\partial u_2}\frac{\partial u_2}{\partial u_1} \\
+&=\frac{\partial u_7}{\partial u_2}\exp{u_2}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Reverse Mode Conclusions}
+\begin{itemize}
+\item
+Note that having worked from top to bottom (the forward sweep) in the
+graph to calculate the function itself, we have to work backwards from
+bottom to top (the backward sweep) to calculate the derivative.
+\item
+So provided we can translate our program into a data flow graph, we can
+apply this procedure to calculate the differential with the same
+complexity as the original program.
+\item
+The pictorial representation of an ANN is effectively the data flow
+graph of the cost function (without the final cost calculation itself)
+and its differential can be calculated as just being identical to
+backpropagation.
+\end{itemize}
+\end{frame}
+
+\subsection{Forward Mode}
+
+\begin{frame}[fragile]{Dual Numbers}
+\begin{itemize}
+\item
+An alternative method for automatic differentiation is called forward
+mode and has a simple implementation. Let us illustrate this using
+Haskell. The actual implementation is about 20 lines of code.
+\item
+Let us define dual numbers
+
+\begin{lstlisting}[language=Haskell]
+data Dual = Dual Double Double
+  deriving (Eq, Show)
+\end{lstlisting}
+\item
+We can think of these pairs as first order polynomials in the
+indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers}
+Thus, for example, we have
+
+$$
+\begin{aligned}
+(x + \epsilon x') + (y + \epsilon y') &= ((x + y) + \epsilon (x' + y')) \\
+(x + \epsilon x')(y + \epsilon y') &= xy + \epsilon (xy' + x'y) \\
+\log (x + \epsilon x') &=
+\log x (1 + \epsilon \frac {x'}{x}) =
+\log x + \epsilon\frac{x'}{x} \\
+\sqrt{(x + \epsilon x')} &=
+\sqrt{x(1 + \epsilon\frac{x'}{x})} =
+\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
+\ldots &= \ldots
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers and The Chain Rule}
+Notice that these equations implicitly encode the chain rule. For
+example, we know, using the chain rule, that
+
+$$
+\frac{\mathrm{d}}{\mathrm{d} x}\log(\sqrt x) =
+\frac{1}{\sqrt x}\frac{1}{2}x^{-1/2} =
+\frac{1}{2x}
+$$
+
+And using the example equations above we have
+
+$$
+\begin{aligned}
+\log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
+                              &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
+                              &= \log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
+\end{aligned}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers Example}
+Notice that dual numbers carry around the calculation and the
+derivative of the calculation.
+
+\begin{itemize}
+\item
+To actually evaluate $\log(\sqrt{x})$
+at a particular value, say 2, we plug in 2 for $x$ and 1 for $x'$
+$$
+\log (\sqrt{2 + \epsilon 1}) = \log(\sqrt{2}) + \epsilon\frac{1}{4}
+$$
+\item
+Thus the derivative of $\log(\sqrt{x})$ at 2 is $1/4$.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers are Numbers}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+instance Num Dual where
+  fromInteger n             = undefined
+  (Dual x x') + (Dual y y') = Dual (x + y) (x' + y')
+  (Dual x x') * (Dual y y') = Dual (x * y) (x * y' + y * x')
+  negate (Dual x x')        = Dual (negate x) (negate x')
+  signum _                  = undefined
+  abs _                     = undefined
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers Can Be Divided}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+instance Fractional Dual where
+  fromRational p    = undefined
+  recip (Dual x x') = Dual (1.0 / x) (-x' / (x * x))
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Dual Numbers are Quasi Floating Point}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+instance Floating Dual where
+  pi = constD pi
+  exp   (Dual x x') = Dual (exp x)   (x' * exp x)
+  log   (Dual x x') = Dual (log x)   (x' / x)
+  sqrt  (Dual x x') = Dual (sqrt x)  (x' / (2 * sqrt x))
+  sin   (Dual x x') = Dual (sin x)   (x' * cos x)
+  cos   (Dual x x') = Dual (cos x)   (x' * (- sin x))
+  sinh  (Dual x x') = Dual (sinh x)  (x' * cosh x)
+  cosh  (Dual x x') = Dual (cosh x)  (x' * sinh x)
+  asin  (Dual x x') = Dual (asin x)  (x' / sqrt (1 - x*x))
+  acos  (Dual x x') = Dual (acos x)  (x' / (-sqrt (1 - x*x)))
+  atan  (Dual x x') = Dual (atan x)  (x' / (1 + x*x))
+  asinh (Dual x x') = Dual (asinh x) (x' / sqrt (1 + x*x))
+  acosh (Dual x x') = Dual (acosh x) (x' / (sqrt (x*x - 1)))
+  atanh (Dual x x') = Dual (atanh x) (x' / (1 - x*x))
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+
+\begin{frame}[fragile]{Example}
+That's all we need to do. Let us implement the function we considered
+earlier.
+
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+f = h . h where h x = x * x
+\end{lstlisting}
+\end{scriptsize}
+
+\begin{scriptsize}
+\begin{lstlisting}
+ghci> f (Dual 2 1)
+  Dual 16.0 32.0
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Automatic Differentiation is {\em Not} Symbolic
+    Differentiation}
+To see that we are *not* doing symbolic differentiation (it's easy to
+see we are not doing numerical differentiation) let us step
+through the actual evaluation.
+
+$$
+\begin{aligned}
+f (\mathrm{Dual}\,2\,1) &\longrightarrow (\lambda z \rightarrow z
+\times z \cdot \lambda z \rightarrow z \times z) (\mathrm{Dual}\,2\,1) \\
+&\longrightarrow (\lambda z \rightarrow z
+\times z) (\mathrm{Dual}\,(2 \times 2)\,(2 \times 1 + 2 \times 1)) \\
+&\longrightarrow  (\lambda z \rightarrow z
+\times z) (\mathrm{Dual}\,4\,4)\\
+&\longrightarrow (\mathrm{Dual}\,(4 \times 4)\,(4 \times 4 + 4 \times 4)) \\
+&\longrightarrow (\mathrm{Dual}\,16\,32)\\
+\end{aligned}
+$$
+\end{frame}
+
+\section{Application}
+
+\begin{frame}[fragile]{Linear Regression}
+$$
+L(\boldsymbol{x}, \boldsymbol{y}, m, c) = \frac{1}{2n}\sum_{i=1}^n (y - (mx + c))^2
+$$
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+cost m c xs ys = (sum (zipWith errSq xs ys)) /
+                 (2 * (fromIntegral (length xs)))
+  where
+    errSq x y = z * z
+      where
+        z = y - (m * x + c)
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Linear Regression}
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
+g m c = cost m c xs ys
+
+zs = (0.1, 0.1) : map f zs
+  where
+
+    deriv (Dual _ x') = x'
+
+    f (c, m) = (c - gamma * cDeriv, m - gamma * mDeriv)
+      where
+        cDeriv = deriv (g (Dual m 0) (Dual c 1))
+        mDeriv = deriv (flip g (Dual c 0) (Dual m 1))
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\begin{frame}[fragile]{Linear Regression}
+\begin{scriptsize}
+\begin{lstlisting}
+ghci> take 10 zs
+  [(0.1,0.1),
+   (0.554,3.2240000000000006),
+   (0.30255999999999983,1.4371599999999995),
+   (0.4542824,2.4573704000000003),
+   (0.3754896159999999,1.8730778559999997),
+   (0.42839290304,2.2059302422400004),
+   (0.4059525336255999,2.0145512305216),
+   (0.42651316156582386,2.1228327781207037),
+   (0.42242942391663607,2.059837404270339),
+   (0.43236801802049607,2.0947533284323567)]
+\end{lstlisting}
+\end{scriptsize}
+\end{frame}
+
+\section{Concluding Thoughts}
+
+\begin{frame}[fragile]{Efficiency}
+Perhaps AD is underused because of efficiency?
+
+It seems that the Financial Services industry is aware that AD is {\em
+  more} efficient than current practice. Order of magnitude
+improvements have been reported.
+\begin{itemize}
+\item
+Smoking Adjoints: fast evaluation of Greeks in Monte Carlo Calculations
+\item
+Adjoints and automatic (algorithmic) differentiation in computational finance
+\end{itemize}
+
+Perhaps AD is slowly permeating into Machine Learning as well but
+there seem to be no easy to find benchmarks.
+
+\begin{itemize}
+\item
+Good Morning, Economics Blog
+\item
+Andrew Gelman's Blog
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Tools}
+  If it were only possible to implement automatic differentiation in
+  Haskell then its applicability would be somewhat
+  limited. Fortunately this is not the case and it can be used in many
+  languages. In general, there are three different approaches:
+
+\begin{itemize}
+\item Operator overloading: available for Haskell and C++. See the
+  Haskell ad package and the C++ FADBAD approach using templates.
+\item Source to source translators: available for Fortran, C and other
+  languages e.g., ADIFOR, TAPENADE and see the wikipedia entry for a
+  more comprehensive list.
+\item New languages with built-in AD primitives.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Resources}
+\begin{itemize}
+\item \textcolor{blue}{http://idontgetoutmuch.wordpress.com}
+\item
+  \textcolor{blue}{http://en.wikipedia.org/wiki/Automatic\_differentiation}
+\item \textcolor{blue}{http://www.autodiff.org}
+\end{itemize}
+\end{frame}
+
+\end{document}

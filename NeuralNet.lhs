@@ -2,6 +2,10 @@
 % Dominic Steinitz
 % 4th April 2013
 
+---
+bibliography: Neural_networks.bibtex
+---
+
 Introduction
 ------------
 
