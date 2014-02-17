@@ -4,7 +4,8 @@ import Data.Maybe (fromMaybe)
 import Diagrams.Prelude
 import Diagrams.TwoD.Arrow
 import Diagrams.Backend.CmdLine
-import Diagrams.Backend.SVG.CmdLine
+-- import Diagrams.Backend.SVG.CmdLine
+import Diagrams.Backend.Cairo.CmdLine
 
 state :: Diagram B R2
 state = circle 1 # lw 0.05 # fc silver
@@ -37,32 +38,19 @@ shaft = arc 0 (1/6 :: Turn)
 shaft' = arc 0 (1/2 :: Turn) # scaleX 0.33
 line = trailFromOffsets [unitX]
 
-arrowStyle1 = (with  & arrowHead  .~ noHead & tailSize .~ 0.3
-                     & arrowShaft .~ shaft  & arrowTail .~ spike'
-                     & tailColor  .~ black)
+arrowStyle1  = (with
+                & arrowHead .~ noHead
+                & tailSize .~ 0.03
+                & arrowShaft .~ line
+                & arrowTail .~ noTail
+                & tailColor  .~ black)
 
-arrowStyle2  = (with  & arrowHead  .~ noHead &  tailSize .~ 0.3
-                      & arrowShaft .~ shaft' & arrowTail .~ spike'
-                      & tailColor  .~ black)
-
-arrowStyle3  = (with  & arrowHead  .~ noHead & tailSize .~ 0.3
-                      & arrowShaft .~ line & arrowTail .~ spike'
-                      & tailColor  .~ black)
-
-example = states # connectPerim' arrowStyle1
-                                 "2" "1" (5/12 :: Turn) (1/12 :: Turn)
-                 # connectPerim' arrowStyle3
-                                 "4" "1" (2/6 :: Turn) (5/6 :: Turn)
-                 # connectPerim' arrowStyle2
-                                 "2" "2" (2/12 :: Turn) (4/12 :: Turn)
-                 # connectPerim' arrowStyle1
-                                 "3" "2" (5/12 :: Turn) (1/12 :: Turn)
-                 # connectPerim' arrowStyle2
-                                 "3" "3" (2/12 :: Turn) (4/12 :: Turn)
-                 # connectPerim' arrowStyle1
-                                 "5" "4" (5/12 :: Turn) (1/12 :: Turn)
-                 # connectPerim' arrowStyle2
-                                 "5" "5" (-1/12 :: Turn) (1/12 :: Turn)
+arrowStyle3  = (with
+                & arrowHead .~ noHead
+                & tailSize .~ 0.03
+                & arrowShaft .~ line
+                & arrowTail .~ spike'
+                & tailColor  .~ black)
 
 displayHeader :: FilePath -> Diagram B R2 -> IO ()
 displayHeader fn =
@@ -70,41 +58,39 @@ displayHeader fn =
              , DiagramLoopOpts False Nothing 0
              )
 
-
-arrowStyle4 :: Color a => a -> ArrowOpts
-arrowStyle4 c = (with  & arrowHead  .~ noHead
-                       & shaftStyle %~ lw 0.005
-                       & shaftColor .~ c
-                       & arrowTail  .~ noTail)
-
 ninePointStencil :: Diagram B R2
 ninePointStencil = points #
-                   connectStencil "Centre" "West"  (1/2 :: Turn) (0 :: Turn)   #
-                   connectStencil "East" "Centre"  (1/2 :: Turn) (0 :: Turn)   #
-                   connectStencil "Centre" "North" (1/4 :: Turn) (3/4 :: Turn) #
-                   connectStencil "South" "Centre" (1/4 :: Turn) (3/4 :: Turn) #
-                   connectStencil "SouthWest" "Centre" (1/8 :: Turn) (5/8 :: Turn) #
-                   connectStencil "SouthEast" "Centre" (3/8 :: Turn) (7/8 :: Turn) #
-                   connectStencil "NorthEast" "Centre" (5/8 :: Turn) (1/8 :: Turn) #
-                   connectStencil "NorthWest" "Centre" (7/8 :: Turn) (3/8 :: Turn)
+                   connWithLab "Centre" "West2" "West" (1/2 :: Turn) (0 :: Turn)   #
+                   connWithLab "East" "East2" "Centre" (1/2 :: Turn) (0 :: Turn)   #
+                   connWithLab "Centre" "SouthWest2" "SouthWest" (5/8 :: Turn) (1/8 :: Turn) #
+                   connWithLab "Centre" "NorthWest2" "NorthWest" (3/8 :: Turn) (7/8 :: Turn)
 
-  where points = ((text "W" # scale 0.03 <> bndPt # named "West") # translate (r2 (0.0, 0.5))) <>
-                 (intPt # named "Centre" # translate (r2 (0.5, 0.5))) <>
-                 ((text "E" # scale 0.03 <> bndPt # named "East") # translate (r2 (1.0, 0.5))) <>
-                 (bndPt # named "North" # translate (r2 (0.5, 1.0))) <>
-                 (bndPt # named "South" # translate (r2 (0.5, 0.0))) <>
-                 (bndPt # named "SouthWest" # translate (r2 (0.0, 0.0))) <>
-                 (bndPt # named "NorthWest" # translate (r2 (0.0, 1.0))) <>
-                 (bndPt # named "SouthEast" # translate (r2 (1.0, 0.0))) <>
-                 (bndPt # named "NorthEast" # translate (r2 (1.0, 1.0)))
+  where
+    connWithLab end1 centre end2 t1 t2 = connectStencil end1 centre t1 t2 .
+                                         connectPerim' arrowStyle1 centre end2 t1 t2
 
-        connectStencil n1 n2 o1 o2 =
-          connectPerim' arrowStyle3 {- (arrowStyle4 green) -} n1 n2 o1 o2
+    point l t n p = (text l # scale 0.03 <> t # named n) # translate p
 
-        intPt = circle cSize # fc blue # lw 0
-        bndPt = circle cSize # fc red  # lw 0
+    points =
+             (point "x1" bndPt "NorthWest"  (r2 (0.0,  1.0)))  <>
+             (point "w1" arrLb "NorthWest2" (r2 (0.25, 0.75))) <>
+             (point "x2" bndPt "West"       (r2 (0.0,  0.5)))  <>
+             (point "w2" arrLb "West2"      (r2 (0.25, 0.5)))  <>
+             (point "x3" bndPt "SouthWest"  (r2 (0.0,  0.0)))  <>
+             (point "w3" arrLb "SouthWest2" (r2 (0.25, 0.25))) <>
+             (point "a"  intPt "Centre"     (r2 (0.5,  0.5)))  <>
+             (point "y"  outPt "East"       (r2 (1.0,  0.5)))  <>
+             (point "f"  arrLb "East2"      (r2 (0.75, 0.5)))
+
+    connectStencil n1 n2 o1 o2 =
+      connectPerim' arrowStyle3 n1 n2 o1 o2
+
+    intPt = circle cSize # fc blue      # lw 0
+    bndPt = circle cSize # fc red       # lw 0
+    arrLb = square (2*cSize) # fc green # lw 0
+    outPt = circle cSize # fc yellow    # lw 0
 
 cSize :: Double
 cSize = 0.03
 
-main = mainWith example
+main = mainWith ninePointStencil

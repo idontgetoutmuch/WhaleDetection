@@ -48,45 +48,53 @@
 
 \section{A Neural Network Refresher}
 
-\subsection{The Model}
+\subsection{A Problem}
 
+\begin{frame}[fragile]{Problem Statement}
+We wish to recognize hand-written digits.
+\end{frame}
 
-\framedgraphic{Example Neural Net}{diagrams/ca75393cd25ce951edcd7133da24a2c6.png}
+\framedgraphic{Recognise Hand Written Digits}{diagrams/mnist_originals.png}
+
+\begin{frame}[fragile]{A Simpler Problem}
+We wish to recognize the digits 0 and 1.
+\end{frame}
+
+\framedgraphic{Perceptron}{diagrams/Fita3.png}
+
+\subsection{A Solution}
 
 \begin{frame}[fragile]{The Model}
-In symbols
+We have
 \begin{itemize}
-\item $\boldsymbol{x}$ the input
-\item $\hat{\boldsymbol{y}}$ the predicted output
-\item $\boldsymbol{y}$ the actual output
-\item $w^{(k)}$ the weights in the $k$-th layer.
-\item $f$ is the transfer function.
+\item Many pixels per observation
+\item Many observations
 \end{itemize}
 \end{frame}
 
-\begin{frame}[fragile]{The Layers}
-$$
-\begin{aligned}
-a_i^{(1)}   &= \sum_{j=0}^{N^{(1)}} w_{ij}^{(1)} x_j       & z_i^{(1)} &= f(a_i^{(1)}) \\
-a_i^{(2)}   &= \sum_{j=0}^{N^{(2)}} w_{ij}^{(2)} z_j^{(1)} &  \dots     &= \ldots \\
-a_i^{(L-1)} &= \sum_{j=0}^{N^{(L-1)}} w_{ij}^{(L-1)} z_j^{(L-2)} & z_j^{(L-1)} &= f(a_j^{(L-1)}) \\
-\hat{y}_i  &= \sum_{j=0}^{N^{(L)}} w_{ij}^{(L)} z_j^{(L-1)} \\
-\end{aligned}
-$$
-\end{frame}
+\framedgraphic{The Data for 0s}{diagrams/mnist_train0.jpg}
+
+\framedgraphic{The Data for 1s}{diagrams/mnist_train1.jpg}
 
 \begin{frame}[fragile]{The Cost Function}
-Loss function aka cost function
+In symbols
 
 $$
-E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) = \frac{1}{2}\|(\hat{\boldsymbol{y}} - \boldsymbol{y})\|^2
+a = \sum_{j=0}^{N} w_{j} x_j
+$$
+
+$$
+\hat{y} = f(a)
 $$
 
 To fit the model we need to find the weights which minimise the cost
-function.
-\end{frame}
+(aka loss) function.
 
-\subsection{Backpropagation}
+$$
+E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) =
+\frac{1}{2}\sum_{i=1}^M(\hat{\boldsymbol{y}_i} - \boldsymbol{y}_i)^2
+$$
+\end{frame}
 
 \begin{frame}[fragile]{Steepest Descent}
 For each weight, we find the derivative of the cost function wrt that
@@ -98,7 +106,19 @@ In summary:
 $$
 w' = w - \gamma\nabla E(w)
 $$
+
+where $\gamma$ is the step length aka the learning rate.
 \end{frame}
+
+\begin{frame}[fragile]{In Summary $\ldots$}
+\begin{itemize}
+\item Hand calculate the derivative
+\item Code it up
+\item Use steepest descent with hand calculated derivative
+\end{itemize}
+\end{frame}
+
+
 
 \begin{frame}[fragile]{Derivatives via Error Signals}
 In order to perform steepest descent, we need to calculate
