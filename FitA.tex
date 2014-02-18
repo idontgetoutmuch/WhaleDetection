@@ -50,17 +50,13 @@
 
 \subsection{A Problem}
 
-\begin{frame}[fragile]{Problem Statement}
-We wish to recognize hand-written digits.
-\end{frame}
-
 \framedgraphic{Recognise Hand Written Digits}{diagrams/mnist_originals.png}
 
 \begin{frame}[fragile]{A Simpler Problem}
 We wish to recognize the digits 0 and 1.
 \end{frame}
 
-\framedgraphic{Perceptron}{diagrams/Fita3.png}
+\framedgraphic{Perceptron}{diagrams/Fita1.png}
 
 \subsection{A Solution}
 
@@ -118,160 +114,13 @@ where $\gamma$ is the step length aka the learning rate.
 \end{itemize}
 \end{frame}
 
+\framedgraphic{Multi Layer Perceptron (MLP)}{diagrams/Fita2.png}
 
-
-\begin{frame}[fragile]{Derivatives via Error Signals}
-In order to perform steepest descent, we need to calculate
-
-$$
-\Delta w_{ij} \equiv \frac{\partial E}{\partial w_{ij}}
-$$
-
-Applying the chain rule
-
-$$
-\Delta w_{ij} =
-\frac{\partial E}{\partial w_{ij}} =
-\frac{\partial E}{\partial a_i}\frac{\partial a_i}{\partial w_{ij}} =
-\delta_j^{(l)}\frac{\partial a_i}{\partial w_{ij}}
-$$
-Where the error signal $\delta_j^{(l)}$ is defined as
-
-$$
-\delta_j^{(l)} \equiv
-\frac{\partial E}{\partial a_j^{(l)}}
-$$
-\end{frame}
-
-\begin{frame}[fragile]{Derivatives via Error Signals}
-Since
-$$
-a_j^{(l)} = \sum_{i=0}^N w_{ij}^{(l)}z_i^{(l-1)}
-$$
-we have
-$$
-\frac{\partial a_i^{(l)}}{\partial w_{ij}^{(l)}} =
-\frac{\partial}{\partial w_{ij}^{(l)}}\sum_{k=0}^M w_{kj}^{(l)}z_k^{(l-1)} =
-z_i^{(l-1)}
-$$
-Using the definition of the error signal
-$$
-\Delta w_{ij}^{(l)} =
-\frac{\partial E}{\partial w_{ij}^{(l)}} =
-\delta_j^{(l)} z_i^{(l-1)}
-$$
-\end{frame}
-
-\begin{frame}[fragile]{The Backpropagation Algorithm}
+\begin{frame}[fragile]{The Derivative Problem}
 \begin{itemize}
-\item
-Finding the $z_i$ for each layer is straightforward: we start with the
-inputs and propagate forward.
-\item
-In order to find the $\delta_j$ we need
-to start with the outputs a propagate backwards.
-\item
-For the output layer we have (since $\hat{y}_j = a_j$)
-$$
-\delta_j = \frac{\partial E}{\partial a_j} = \frac{\partial E}{\partial \hat{y}_j} = \frac{\partial}{\partial \hat{y}_j}\bigg(\frac{1}{2}\sum_{i=0}^M (\hat{y}_i - y_i)^2\bigg) = \hat{y}_j - y_j
-$$
-\end{itemize}
-\end{frame}
-
-\begin{frame}[fragile]{Backpropagation for Hidden Layers}
-For a hidden layer using the chain rule
-
-$$
-\delta_j^{(l-1)} = \frac{\partial E}{\partial a_j^{(l-1)}} =
-\sum_k \frac{\partial E}{\partial a_k^{(l)}}\frac{\partial
-  a_k^{(l)}}{\partial a_j^{(l-1)}} =
-\sum_k \delta_k^{(l)}\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
-$$
-\end{frame}
-
-\begin{frame}[fragile]{Backpropagation for Hidden Layers}
-We therefore consider in more detail
-
-$$
-\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}}
-$$
-
-We have
-
-$$
-a_k^{(l)} = \sum_i w_{ki}^{(l)}z_i^{(l-1)} = \sum_i w_{ki}^{(l)} f(a_i^{(l-1)})
-$$
-
-so that
-
-$$
-\frac{\partial a_k^{(l)}}{\partial a_j^{(l-1)}} =
-\frac{\sum_i w_{ki}^{(l)} f(a_i^{(l-1)})}{\partial a_j^{(l-1)}} =
-w_{kj}^{(l)}\,f'(a_j^{(l-1)})
-$$
-\end{frame}
-
-\begin{frame}[fragile]{Backpropagation for Hidden Layers}
-and thus
-
-$$
-\begin{aligned}
-\delta_j^{(l-1)} &=
-\sum_k \delta_k^{(l)}\frac{\partial
-  a_k^{(l)}}{\partial a_j^{(l-1)}} \\
-&= \sum_k \delta_k^{(l)} w_{kj}^{(l)}\, f'(a_j^{(l-1)}) \\
-&= f'(a_j^{(l-1)}) \sum_k \delta_k^{(l)} w_{kj}^{(l)}
-\end{aligned}
-$$
-\end{frame}
-
-\begin{frame}[fragile]{Backpropagation in Full}
-Summarising
-
-\begin{enumerate}
-\item
-We calculate all $a_j$ and $z_j$ for each layer starting with the
-input layer and propagating forward.
-\item
-We evaluate $\delta_j^{(L)}$ in the output layer using $\delta_j = \hat{y}_j - y_j$.
-\item
-We evaluate $\delta_j$ in each layer using $\delta_j^{(l-1)} =
-f'(a_j^{(l-1)})\sum_k \delta_k^{(l)} w_{kj}^{(l)}$ starting with the output
-layer and propagating backwards.
-\item
-Use $\partial E / \partial w_{ij}^{(l)} = \delta_j^{(l)} z_i^{(l-1)}$ to obtain the
-required derivatives in each layer.
-\end{enumerate}
-\end{frame}
-
-\section{Not Sure Yet}
-
-\begin{frame}[fragile]{ANN: The Classical Approach}
-Rather than using bumping or symbolic differentation, for ANN's we can
-use backpropagation, a technique which seems to be taught on many
-Machine Learning courses.
-\end{frame}
-
-\begin{frame}{The Goal}
-
-  \begin{itemize}
-  \item Wish to fit a model using training data
-  \item As an example assume model is a neural network
-  \item Need to minimise a cost function: predicted vs. actual
-  \item Highly non-linear
-  \item Use steepest descent
-  \item To do this we need the derivative of the cost function wrt the
-    parameters
-\end{itemize}
-
-\end{frame}
-
-\begin{frame}{But Problems \ldots}
-\begin{itemize}
-\item
-Program calculates the non-linear function (not an explicit function)
-\item
-Function has lots of parameters
+\item Hand calculating the derivative is more complicated and thus error prone.
+\item What happens if I change my model?
+\item What happens if I change my transfer function?
 \end{itemize}
 \end{frame}
 
@@ -295,20 +144,10 @@ And we are using floating point arithmetic \ldots
 \framedgraphic{Floating Point Errors}{diagrams/13a2bd186a0e123f040da9491fa98684.png}
 
 \subsection{Symbolic Differentiation}
-\begin{frame}[fragile]{Symbolic Differentiation}
-\begin{itemize}
-\item
-Turn program into mathematical function
-\item
-Compute the differential also as a function either by hand or using
-symbolic differentiation package.
-\end{itemize}
-
-But \ldots
-\end{frame}
 
 \begin{frame}[fragile]{Python Example}
-\ldots consider the following Python fragment
+  Could use a symbolic differentiation package but consider the
+  following Python fragment
 \begin{lstlisting}[language=Python]
 import numpy as np
 
@@ -318,7 +157,9 @@ def many_sines(x):
         y = np.sin(x+y)
     return y
 \end{lstlisting}
+\end{frame}
 
+\begin{frame}[fragile]{Python Example}
 When we unroll the loop we are actually evaluating
 
 $$
@@ -343,84 +184,40 @@ f'(x) &=           (((((2\cdot \cos(2x)+1)\cdot \\
 $$
 \end{frame}
 
-\begin{frame}[fragile]{Implications for ANN}
+\begin{frame}[fragile]{Moreover}
 \begin{itemize}
-\item The mathematical function for an ANN could easily be more
+\item The mathematical function for an MLP could easily be more
   complicated.
-\item Creating the derivative by hand is error prone.
 \item To use a symbolic differentiation package (usually) requires
   some manipulation of the original program.
 \end{itemize}
 \end{frame}
 
-\section{Chain Rule Refresher}
+\subsection{Backpropagation}
 
-\begin{frame}[fragile]{The Rule}
+\begin{frame}[fragile]{Backpropagation}
 \begin{itemize}
-\item
-In Lagrange's notation
-$$
-(g \circ f)'(a) = g'(f(a))\cdot f'(a)
-$$
-\item
-In Leibniz' notation
-$$
-\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x}(a) =
-\frac{\mathrm{d} g}{\mathrm{d} y}(f(a)) \frac{\mathrm{d} f}{\mathrm{d} x}(a)
-$$
-where $y = f(x)$.
-\item
-More suggestively, setting $h = g \circ f$, we can write
-$$
-\frac{\mathrm{d} h}{\mathrm{d} x} =
-\frac{\mathrm{d} h}{\mathrm{d} y} \frac{\mathrm{d} y}{\mathrm{d} x}
-$$
-where it is understood that $\mathrm{d} h / \mathrm{d} x$ and
-$\mathrm{d} y / \mathrm{d} x$ are evaluated at $a$ and $\mathrm{d} h /
-\mathrm{d} y$ is evaluated at $f(a)$.
+% \pause
+\item Efficient method for finding the derivative for MLPs (1960's).
+% \pause
+\item Complex but quite often appears in Machine Learning 101.
+% \pause
+\item But maybe following P\'{o}lya we can find a problem that is more
+  general and use this not just for MLPs but for estimating parameters
+  for other Machine Learning models.
+% \pause
+\item Idea: we drew the Neural Net as a graph maybe if we can draw a
+  program as a graph we can calculate the derivative of the function
+  which the program represents.
 \end{itemize}
 \end{frame}
-
-\begin{frame}[fragile]{Example}
-Recall that if $f(x) = x^2$ then $f'(x) = 2x$. Suppose we only know
-this and we also know the chain rule then we can use this to calculate
-the derivative of $f(x) = x^4$.
-
-We have
-\begin{itemize}
-\item
-$f(x) = x^2$ and $g(y) = y^2$ thus $(g \circ f)(x) = x^4$
-\item
-$f'(x) = 2x$ and $g'(y) = 2y$
-\item
-The Chain Rule $(g \circ f)'(x) = g'(f(x))f'(x)$
-\item
-Thus $(g \circ f)'(x) = 2f(x)2x = 2x^22x = 4x^3$
-\end{itemize}
-\end{frame}
-
 
 \section{Automatic Differentiation}
-
-\begin{frame}[fragile]{Hard Work --- Can We Generalise}
-\begin{itemize}
-\item
-Phew!
-\item
-But maybe following P\'{o}lya we can find a problem that is more
-general and use this not just for ANNs but for estimating parameters
-for other Machine Learning models.
-\item
-Idea: we drew the Neural Net as a graph maybe if we can draw a program as a
-graph we can calculate the derivative of the function which the
-program represents.
-\end{itemize}
-\end{frame}
 
 \subsection{Reverse Mode}
 
 \begin{frame}[fragile]{A Simpler Example}
-Consider the function
+Instead of an MLP, consider the function
 
 $$
 f(x) = \exp(\exp(x) + (\exp(x))^2) + \sin(\exp(x) + (\exp(x))^2)
@@ -466,15 +263,66 @@ $$
 $$
 \end{frame}
 
+\begin{frame}[fragile]{Tangents and Cotangents}
+  If you are worried by differentials, this is all well defined. For
+  example, suppose we have $f : \mathbb{R}^2 \rightarrow \mathbb{R}$
+  then derivative of $f$ at $a$, denoted $\mathrm{d}f_a$, is an
+  element of a vector space called the cotangent space and
+
+$$
+\mathrm{d}f_a = \bigg(\frac{\partial f}{\partial x}\bigg)_a\mathrm{d}x_a +
+                \bigg(\frac{\partial f}{\partial y}\bigg)_a\mathrm{d}y_a
+$$
+
+where $\mathrm{d}x_a, \mathrm{d}y_a$ are a basis for the cotangent
+space and $\big(\frac{\partial f}{\partial x}\big)_a,
+\big(\frac{\partial f}{\partial x}\big)_a$ are real numbers.
+\end{frame}
+
+\begin{frame}[fragile]{Tangents and Cotangents}
+All we have to know is the following form of the \it{chain rule}.
+
+$$
+\frac{\partial f}{\partial u} =
+ \frac{\partial f}{\partial x}\frac{\partial x}{\partial u} +
+ \frac{\partial f}{\partial y}\frac{\partial y}{\partial u}
+$$
+
+\end{frame}
+
 \begin{frame}[fragile]{Differentials Example}
+\uncover<1->{
+$$
+\mathrm{d}u_7     = \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
+                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1
+$$
+}
+\uncover<2->{
+Using the \it{chain rule}
+$$
+\frac{\partial u_7}{\partial u_6} =
+                    \frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_6} +
+                    \frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_6} +
+                    \frac{\partial f_7}{\partial u_4} \frac{\partial u_4}{\partial u_6} +
+                    \frac{\partial f_7}{\partial u_3} \frac{\partial u_3}{\partial u_6} +
+                    \frac{\partial f_7}{\partial u_2} \frac{\partial u_2}{\partial u_6} +
+                    \frac{\partial f_7}{\partial u_1} \frac{\partial
+                      u_1}{\partial u_6}
+$$
+}
+\uncover<3->{
 In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
-
 $$
-\begin{aligned}
-\frac{\partial u_7}{\partial u_6} &= 1
-\end{aligned}
+\frac{\partial u_7}{\partial u_6} = 1
 $$
+}
+\end{frame}
 
+\begin{frame}[fragile]{Differentials Example}
 Further $u_6$ does not depend on $u_5$ so we also have
 
 $$
@@ -800,5 +648,38 @@ Andrew Gelman's Blog
 \item \textcolor{blue}{http://www.autodiff.org}
 \end{itemize}
 \end{frame}
+
+\section{Not Sure Yet}
+
+\begin{frame}[fragile]{ANN: The Classical Approach}
+Rather than using bumping or symbolic differentation, for ANN's we can
+use backpropagation, a technique which seems to be taught on many
+Machine Learning courses.
+\end{frame}
+
+\begin{frame}{The Goal}
+
+  \begin{itemize}
+  \item Wish to fit a model using training data
+  \item As an example assume model is a neural network
+  \item Need to minimise a cost function: predicted vs. actual
+  \item Highly non-linear
+  \item Use steepest descent
+  \item To do this we need the derivative of the cost function wrt the
+    parameters
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{But Problems \ldots}
+\begin{itemize}
+\item
+Program calculates the non-linear function (not an explicit function)
+\item
+Function has lots of parameters
+\end{itemize}
+\end{frame}
+
+
 
 \end{document}
