@@ -50,19 +50,11 @@
 
 \subsection{A Problem}
 
-\framedgraphic{Recognise Hand Written Digits}{diagrams/mnist_originals.png}
+\framedgraphic{Problem: Recognise Hand Written Digits}{diagrams/mnist_originals.png}
 
 \begin{frame}[fragile]{A Simpler Problem}
-We wish to recognize the digits 0 and 1.
-\end{frame}
-
-\framedgraphic{Perceptron}{diagrams/Fita1.png}
-
-\subsection{A Solution}
-
-\begin{frame}[fragile]{The Model}
-We have
 \begin{itemize}
+\item We wish to recognize the digits 0 and 1.
 \item Many pixels per observation
 \item Many observations
 \end{itemize}
@@ -72,9 +64,11 @@ We have
 
 \framedgraphic{The Data for 1s}{diagrams/mnist_train1.jpg}
 
-\begin{frame}[fragile]{The Cost Function}
-In symbols
+\subsection{A Solution}
 
+\framedgraphic{Perceptron}{diagrams/Fita1.png}
+
+\begin{frame}[fragile]{In Symbols}
 $$
 a = \sum_{j=0}^{N} w_{j} x_j
 $$
@@ -93,17 +87,20 @@ $$
 \end{frame}
 
 \begin{frame}[fragile]{Steepest Descent}
+\uncover<1->{
 For each weight, we find the derivative of the cost function wrt that
 weight and use that to step a small distance (the learning rate) in
 the direction which reduces the cost most quickly.
+}
 
-In summary:
-
+\uncover<2->{
+In symbols:
 $$
 w' = w - \gamma\nabla E(w)
 $$
 
 where $\gamma$ is the step length aka the learning rate.
+}
 \end{frame}
 
 \begin{frame}[fragile]{In Summary $\ldots$}
@@ -280,7 +277,7 @@ space and $\big(\frac{\partial f}{\partial x}\big)_a,
 \end{frame}
 
 \begin{frame}[fragile]{Tangents and Cotangents}
-All we have to know is the following form of the \it{chain rule}.
+All we have to know is the following form of the {\color{blue}{chain rule}}.
 
 $$
 \frac{\partial f}{\partial u} =
@@ -302,7 +299,7 @@ $$
 $$
 }
 \uncover<2->{
-Using the \it{chain rule}
+Using the {\color{blue}{chain rule}}
 $$
 \frac{\partial u_7}{\partial u_6} =
                     \frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_6} +
@@ -315,21 +312,35 @@ $$
 $$
 }
 \uncover<3->{
-In our particular example, since $u_1, \dots, u_5$ do not depend on $u_6$
+Since $u_1, \dots, u_5$ do not depend on $u_6$
 $$
-\frac{\partial u_7}{\partial u_6} = 1
+\frac{\partial u_7}{\partial u_6} = \frac{\partial f_7}{\partial u_6}
+= 1
 $$
 }
 \end{frame}
 
 \begin{frame}[fragile]{Differentials Example}
-Further $u_6$ does not depend on $u_5$ so we also have
-
+\uncover<1->{
+Using the {\color{blue}{chain rule}} again
 $$
-\begin{aligned}
-\frac{\partial u_7}{\partial u_5} &= 1 \\
-\end{aligned}
+\frac{\partial u_7}{\partial u_5} =
+                    \frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_5} +
+                    \frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_5} +
+                    \frac{\partial f_7}{\partial u_4} \frac{\partial u_4}{\partial u_5} +
+                    \frac{\partial f_7}{\partial u_3} \frac{\partial u_3}{\partial u_5} +
+                    \frac{\partial f_7}{\partial u_2} \frac{\partial u_2}{\partial u_5} +
+                    \frac{\partial f_7}{\partial u_1} \frac{\partial
+                      u_1}{\partial u_5}
 $$
+}
+\uncover<2->{
+Since $u_1, \dots, u_4$ {\color{blue}{and}} $u_6$ do not depend on $u_5$
+$$
+\frac{\partial u_7}{\partial u_5} = \frac{\partial f_7}{\partial u_5}
+= 1
+$$
+}
 \end{frame}
 
 \begin{frame}[fragile]{Differentials Example More Interesting}
@@ -348,11 +359,18 @@ $$
 \end{frame}
 
 \begin{frame}[fragile]{Differentials Example Carrying On}
+\uncover<1->{
 $$
 \begin{aligned}
-\frac{\partial u_7}{\partial u_3} &=
- \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} \\
-&= \frac{\partial u_7}{\partial u_4} \\
+ \frac{\partial u_7}{\partial u_3} =
+ \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} =
+ \frac{\partial u_7}{\partial u_4}
+\end{aligned}
+$$
+}
+\uncover<2->{
+$$
+\begin{aligned}
 \frac{\partial u_7}{\partial u_2} &=
  \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_2} +
  \frac{\partial u_7}{\partial u_3}\frac{\partial u_3}{\partial u_2} \\
@@ -362,6 +380,7 @@ $$
 &=\frac{\partial u_7}{\partial u_2}\exp{u_2}
 \end{aligned}
 $$
+}
 \end{frame}
 
 \begin{frame}[fragile]{Reverse Mode Conclusions}
@@ -648,38 +667,5 @@ Andrew Gelman's Blog
 \item \textcolor{blue}{http://www.autodiff.org}
 \end{itemize}
 \end{frame}
-
-\section{Not Sure Yet}
-
-\begin{frame}[fragile]{ANN: The Classical Approach}
-Rather than using bumping or symbolic differentation, for ANN's we can
-use backpropagation, a technique which seems to be taught on many
-Machine Learning courses.
-\end{frame}
-
-\begin{frame}{The Goal}
-
-  \begin{itemize}
-  \item Wish to fit a model using training data
-  \item As an example assume model is a neural network
-  \item Need to minimise a cost function: predicted vs. actual
-  \item Highly non-linear
-  \item Use steepest descent
-  \item To do this we need the derivative of the cost function wrt the
-    parameters
-\end{itemize}
-
-\end{frame}
-
-\begin{frame}{But Problems \ldots}
-\begin{itemize}
-\item
-Program calculates the non-linear function (not an explicit function)
-\item
-Function has lots of parameters
-\end{itemize}
-\end{frame}
-
-
 
 \end{document}
