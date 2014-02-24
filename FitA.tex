@@ -34,8 +34,8 @@
   \begin{itemize}
   \item Artificial Neural Networks (ANNs) are a well-established
     Machine Learning (ML) technique.
-  \item Traditionally, training ANNs is done using a technique called
-    backpropogation.
+  \item Traditionally, training (aka fitting) ANNs is done using a
+    technique called backpropogation.
   \item It turns out that this is just a specialised version of
     Reverse Automatic Differentiation (RAD) and steepest descent.
   \item This talk explains the theory behind RAD and develops an
@@ -194,15 +194,15 @@ $$
 
 \begin{frame}[fragile]{Backpropagation}
 \begin{itemize}
-% \pause
+\pause
 \item Efficient method for finding the derivative for MLPs (1960's).
-% \pause
+\pause
 \item Complex but quite often appears in Machine Learning 101.
-% \pause
+\pause
 \item But maybe following P\'{o}lya we can find a problem that is more
   general and use this not just for MLPs but for estimating parameters
   for other Machine Learning models.
-% \pause
+\pause
 \item Idea: we drew the Neural Net as a graph maybe if we can draw a
   program as a graph we can calculate the derivative of the function
   which the program represents.
@@ -220,10 +220,16 @@ $$
 f(x) = \exp(\exp(x) + (\exp(x))^2) + \sin(\exp(x) + (\exp(x))^2)
 $$
 
-We can write this as a data flow graph...
+We wish to find
+
+$$
+\frac{\mathrm{d} f}{\mathrm{d} x}
+$$
+
+We can write this function as a data flow graph...
 \end{frame}
 
-\framedgraphic{Data Flow Graph}{diagrams/02c0671aa558b88e5ed6f195b22bbd8a.png}
+\framedgraphic{Data Flow Graph}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Sequence of Functions}
 We can thus re-write our function as a sequence of simpler functions
@@ -240,55 +246,44 @@ u_2    &= f_2(u_1)
 $$
 \end{frame}
 
-\begin{frame}[fragile]{Differentials}
-$$
-\begin{aligned}
-\mathrm{d}u_7    &= \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
-                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
-                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
-                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
-                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
-                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1 \\
-\mathrm{d}u_6    &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
-                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
-                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
-                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
-                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1 \\
-\ldots           &= \ldots \\
-\mathrm{d}u_2    &= \frac{\partial f_2}{\partial u_1} \mathrm{d} u_1
-\end{aligned}
-$$
-\end{frame}
 
-\begin{frame}[fragile]{Tangents and Cotangents}
-  If you are worried by differentials, this is all well defined. For
-  example, suppose we have $f : \mathbb{R}^2 \rightarrow \mathbb{R}$
-  then derivative of $f$ at $a$, denoted $\mathrm{d}f_a$, is an
-  element of a vector space called the cotangent space and
-
+\begin{frame}[fragile]{The Chain Rule}
+\uncover<1->{
+Recall the {\color{blue}{chain rule}}: if $f(x) = g(h(x))$ and  $y =
+h(x)$ then
 $$
-\mathrm{d}f_a = \bigg(\frac{\partial f}{\partial x}\bigg)_a\mathrm{d}x_a +
-                \bigg(\frac{\partial f}{\partial y}\bigg)_a\mathrm{d}y_a
+\frac{\mathrm{d} f}{\mathrm{d} x} =
+\frac{\mathrm{d} g}{\mathrm{d} y}\frac{\mathrm{d} h}{\mathrm{d} x}
 $$
-
-where $\mathrm{d}x_a, \mathrm{d}y_a$ are a basis for the cotangent
-space and $\big(\frac{\partial f}{\partial x}\big)_a,
-\big(\frac{\partial f}{\partial x}\big)_a$ are real numbers.
-\end{frame}
-
-\begin{frame}[fragile]{Tangents and Cotangents}
-All we have to know is the following form of the {\color{blue}{chain rule}}.
+}
+\uncover<2->{
+More suggestively we can write
+$$
+\frac{\mathrm{d} f}{\mathrm{d} x} =
+\frac{\mathrm{d} f}{\mathrm{d} y}\frac{\mathrm{d} y}{\mathrm{d} x}
+$$
+}
+\uncover<3->{
+We need the multivariate form
 
 $$
 \frac{\partial f}{\partial u} =
  \frac{\partial f}{\partial x}\frac{\partial x}{\partial u} +
  \frac{\partial f}{\partial y}\frac{\partial y}{\partial u}
 $$
-
+}
 \end{frame}
 
-\begin{frame}[fragile]{Differentials Example}
+\begin{frame}[fragile]{Chain Rule Example}
+In our example data flow graph, we would like to find
+$$
+\frac{\partial f_7}{\partial u_1}
+$$
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
+Using differentials
 $$
 \mathrm{d}u_7     = \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
                     \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
@@ -320,7 +315,7 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Differentials Example}
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
 Using the {\color{blue}{chain rule}} again
 $$
@@ -343,22 +338,26 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Differentials Example More Interesting}
+\begin{frame}[fragile]{Chain Rule Example}
+\uncover<1->{
 Now things become more interesting as $u_6$ and $u_5$ both depend on
 $u_4$.
 
 $$
-\begin{aligned}
-\frac{\partial u_7}{\partial u_4} &=
+\frac{\partial u_7}{\partial u_4} =
  \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
- \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4} \\
-&= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
-   \frac{\partial u_7}{\partial u_5}\cos{u_5}
-\end{aligned}
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4}
 $$
+}
+\uncover<2->{
+$$
+= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
+  \frac{\partial u_7}{\partial u_5}\cos{u_5}
+$$
+}
 \end{frame}
 
-\begin{frame}[fragile]{Differentials Example Carrying On}
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
 \uncover<1->{
 $$
 \begin{aligned}
@@ -666,6 +665,52 @@ Andrew Gelman's Blog
   \textcolor{blue}{http://en.wikipedia.org/wiki/Automatic\_differentiation}
 \item \textcolor{blue}{http://www.autodiff.org}
 \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Differentials}
+\uncover<1->{
+$$
+\mathrm{d}u_7     = \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
+                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1
+$$
+}
+\uncover<2->{
+$$
+\mathrm{d}u_6     = \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
+                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
+                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
+                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
+                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1
+$$
+}
+\uncover<3->{
+$$
+\begin{aligned}
+\ldots           &= \ldots \\
+\mathrm{d}u_2    &= \frac{\partial f_2}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Tangents and Cotangents}
+  If you are worried by differentials, this is all well defined. For
+  example, suppose we have $f : \mathbb{R}^2 \rightarrow \mathbb{R}$
+  then derivative of $f$ at $a$, denoted $\mathrm{d}f_a$, is an
+  element of a vector space called the cotangent space and
+
+$$
+\mathrm{d}f_a = \bigg(\frac{\partial f}{\partial x}\bigg)_a\mathrm{d}x_a +
+                \bigg(\frac{\partial f}{\partial y}\bigg)_a\mathrm{d}y_a
+$$
+
+where $\mathrm{d}x_a, \mathrm{d}y_a$ is a basis for the cotangent
+space and $\big(\frac{\partial f}{\partial x}\big)_a,
+\big(\frac{\partial f}{\partial x}\big)_a$ are real numbers.
 \end{frame}
 
 \end{document}
