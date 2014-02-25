@@ -2,6 +2,7 @@
 \usepackage[latin1]{inputenc}
 \usepackage{listings}
 \usepackage{color}
+\usepackage{ulem}
 
 \newcommand {\framedgraphic}[2] {
     \begin{frame}{#1}
@@ -277,13 +278,13 @@ $$
 \begin{frame}[fragile]{Chain Rule Example}
 In our example data flow graph, we would like to find
 $$
-\frac{\partial f_7}{\partial u_1}
+\frac{\partial u_7}{\partial u_1}
 $$
 \end{frame}
 
 \begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
-Using differentials
+In general, using differentials
 $$
 \mathrm{d}u_7     = \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
                     \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
@@ -294,19 +295,32 @@ $$
 $$
 }
 \uncover<2->{
-Using the {\color{blue}{chain rule}}
+
+  But in our example $f_7(u_6, \ldots, u_1) = u_6 + u_5$ only depends
+  explicitly on $u_6$ and $u_5$ so
+
 $$
-\frac{\partial u_7}{\partial u_6} =
-                    \frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_6} +
-                    \frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_6} +
-                    \frac{\partial f_7}{\partial u_4} \frac{\partial u_4}{\partial u_6} +
-                    \frac{\partial f_7}{\partial u_3} \frac{\partial u_3}{\partial u_6} +
-                    \frac{\partial f_7}{\partial u_2} \frac{\partial u_2}{\partial u_6} +
-                    \frac{\partial f_7}{\partial u_1} \frac{\partial
-                      u_1}{\partial u_6}
+                    \frac{\partial f_7}{\partial u_4} =
+                    \frac{\partial f_7}{\partial u_3} =
+                    \frac{\partial f_7}{\partial u_2} =
+                    \frac{\partial f_7}{\partial u_1} =
+                    0
 $$
 }
-\uncover<3->{
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example}
+\uncover<1->{
+Using the {\color{blue}{chain rule}}
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_6} &=
+\frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_6} +
+\frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_6}
+\end{aligned}
+$$
+}
+\uncover<2->{
 Since $u_1, \dots, u_5$ do not depend on $u_6$
 $$
 \frac{\partial u_7}{\partial u_6} = \frac{\partial f_7}{\partial u_6}
@@ -321,16 +335,11 @@ Using the {\color{blue}{chain rule}} again
 $$
 \frac{\partial u_7}{\partial u_5} =
                     \frac{\partial f_7}{\partial u_6} \frac{\partial u_6}{\partial u_5} +
-                    \frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_5} +
-                    \frac{\partial f_7}{\partial u_4} \frac{\partial u_4}{\partial u_5} +
-                    \frac{\partial f_7}{\partial u_3} \frac{\partial u_3}{\partial u_5} +
-                    \frac{\partial f_7}{\partial u_2} \frac{\partial u_2}{\partial u_5} +
-                    \frac{\partial f_7}{\partial u_1} \frac{\partial
-                      u_1}{\partial u_5}
+                    \frac{\partial f_7}{\partial u_5} \frac{\partial u_5}{\partial u_5}
 $$
 }
 \uncover<2->{
-Since $u_1, \dots, u_4$ {\color{blue}{and}} $u_6$ do not depend on $u_5$
+Since $u_6$ does not depend on $u_5$
 $$
 \frac{\partial u_7}{\partial u_5} = \frac{\partial f_7}{\partial u_5}
 = 1
@@ -345,42 +354,269 @@ $u_4$.
 
 $$
 \frac{\partial u_7}{\partial u_4} =
- \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
- \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4}
+ \frac{\partial f_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
+ \frac{\partial f_7}{\partial u_5}\frac{\partial u_5}{\partial u_4}
 $$
 }
 \uncover<2->{
 $$
-= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
-  \frac{\partial u_7}{\partial u_5}\cos{u_5}
+= \frac{\partial f_7}{\partial u_6}\exp{u_4} +
+  \frac{\partial f_7}{\partial u_5}\cos{u_4}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+Now we are stuck as we do not know the required partial derivatives
+\uncover<1->{
+$$
+\begin{aligned}
+ \frac{\partial u_7}{\partial u_3} =
+ \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_3} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_3}
+\end{aligned}
 $$
 }
 \end{frame}
 
 \begin{frame}[fragile]{Chain Rule Example Carrying On}
 \uncover<1->{
+But we can look at $f_6$ using differentials
 $$
 \begin{aligned}
- \frac{\partial u_7}{\partial u_3} =
- \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} =
- \frac{\partial u_7}{\partial u_4}
+\mathrm{d}u_6     &= \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
+                     \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
+                     \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
+                     \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
+                     \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+}
+\uncover<2->{
+
+  In our example $f_6(u_5, \ldots, u_1) = \exp{u_4}$ only depends
+  explicitly on $u_4$ so
+
+$$
+\begin{aligned}
+\mathrm{d}u_6 &= \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4
+\end{aligned}
+$$
+}
+\uncover<3->{
+Again the {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_6}{\partial u_3} &= \frac{\partial f_6}{\partial
+  u_4}\frac{\partial u_4}{\partial u_3} = \exp u_4
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+Similarly we can look at $f_5$ using differentials
+$$
+\begin{aligned}
+\mathrm{d}u_5     &= \frac{\partial f_5}{\partial u_4} \mathrm{d} u_4 +
+                     \frac{\partial f_5}{\partial u_3} \mathrm{d} u_3 +
+                     \frac{\partial f_5}{\partial u_2} \mathrm{d} u_2 +
+                     \frac{\partial f_5}{\partial u_1} \mathrm{d} u_1
+\end{aligned}
+$$
+}
+\uncover<2->{
+
+  In our example $f_5 (u_4, \ldots, u_1) = \sin{u_4}$ only depends
+  explicitly on $u_4$ so
+
+$$
+\begin{aligned}
+\mathrm{d}u_5 &= \frac{\partial f_5}{\partial u_4} \mathrm{d} u_4
+\end{aligned}
+$$
+}
+\uncover<3->{
+Again the {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_5}{\partial u_3} &= \frac{\partial f_5}{\partial
+  u_4}\frac{\partial u_4}{\partial u_3} = \cos u_4
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+Now we can substitute in where we were stuck
+\uncover<1->{
+$$
+\begin{aligned}
+ \frac{\partial u_7}{\partial u_3} &=
+ \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_3} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_3} \\
+ &= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
+    \frac{\partial u_7}{\partial u_5}\cos{u_4} \\
+ &= \exp{u_4} +
+    \cos{u_4}
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+Again we are stuck
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_2} &=
+\frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_2} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_2}
+\end{aligned}
+$$
+}
+\uncover<2->{
+But as before
+$$
+\begin{aligned}
+\frac{\partial u_6}{\partial u_2} &= \frac{\partial f_6}{\partial u_4}
+\frac{\partial u_4}{\partial u_2} = \exp{u_4}\frac{\partial u_4}{\partial u_2}
+\end{aligned}
+$$
+}
+\uncover<2->{
+And
+$$
+\begin{aligned}
+\frac{\partial u_5}{\partial u_2} &= \frac{\partial f_5}{\partial u_4}
+\frac{\partial u_4}{\partial u_2} = \cos{u_4}\frac{\partial u_4}{\partial u_2}
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+So now we need to look at $f_4(u_3,u_2,u_1) = u_3 + u_2$ and thus
+$$
+\begin{aligned}
+\mathrm{d}u_4 &= \frac{\partial f_4}{\partial u_3} \mathrm{d} u_3 +
+                 \frac{\partial f_4}{\partial u_2} \mathrm{d} u_2
+\end{aligned}
+$$
+}
+\uncover<2->{
+Again the {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_4}{\partial u_2} &=
+ \frac{\partial f_4}{\partial u_3} \frac{\partial u_3}{\partial u_2} +
+ \frac{\partial f_4}{\partial u_2} \\
+&= 2u_2 + 1
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+Again we can substitute in where we were stuck
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_2} &=
+\frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_2} +
+ \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_2} \\
+&= (\exp{u_4} + \cos{u_4})\frac{\partial u_4}{\partial u_2} \\
+&= (\exp{u_4} + \cos{u_4})(1 + 2u_2)
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+Finally we get what we originally wanted but yet again we are stuck
+$$
+\begin{aligned}
+\frac{\partial u_7}{\partial u_1} &=
+\frac{\partial f_7}{\partial u_6}\frac{\partial u_6}{\partial u_1} +
+\frac{\partial f_7}{\partial u_5}\frac{\partial u_5}{\partial u_1} \\
+&=
+\frac{\partial u_6}{\partial u_1} +
+\frac{\partial u_5}{\partial u_1}
 \end{aligned}
 $$
 }
 \uncover<2->{
 $$
 \begin{aligned}
-\frac{\partial u_7}{\partial u_2} &=
- \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_2} +
- \frac{\partial u_7}{\partial u_3}\frac{\partial u_3}{\partial u_2} \\
-&= \frac{\partial u_7}{\partial u_4} + 2u_2\frac{\partial u_7}{\partial u_4} \\
-\frac{\partial u_7}{\partial u_1} &=
- \frac{\partial u_7}{\partial u_2}\frac{\partial u_2}{\partial u_1} \\
-&=\frac{\partial u_7}{\partial u_2}\exp{u_2}
+\frac{\partial u_6}{\partial u_1} &=
+\frac{\partial f_6}{\partial u_4}\frac{\partial u_4}{\partial u_1}
+\end{aligned}
+$$
+}
+\uncover<3->{
+$$
+\begin{aligned}
+\frac{\partial u_5}{\partial u_1} &=
+\frac{\partial f_5}{\partial u_4}\frac{\partial u_4}{\partial u_1}
 \end{aligned}
 $$
 }
 \end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+So now we need to look at
+$$
+f_4(u_3,u_2,u_1) = u_3 + u_2
+$$
+}
+\uncover<2->{
+The {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_4}{\partial u_1} &=
+ \frac{\partial f_4}{\partial u_3} \frac{\partial u_3}{\partial u_1} +
+ \frac{\partial f_4}{\partial u_2}  \frac{\partial u_3}{\partial u_1}
+\end{aligned}
+$$
+}
+\uncover<3->{
+Again the {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_3}{\partial u_1} &=
+ \frac{\partial f_3}{\partial u_2} \frac{\partial u_2}{\partial u_1}
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example Carrying On}
+\uncover<1->{
+So now we need to look at
+$$
+\begin{aligned}
+f_3(u_2,u_1) &= u_2^2 \\
+f_2(u_1) &= \exp{u_1}
+\end{aligned}
+$$
+}
+\uncover<2->{
+The {\color{blue}{chain rule}} gives
+$$
+\begin{aligned}
+\frac{\partial u_3}{\partial u_1} &=
+\frac{\partial f_3}{\partial u_2} \frac{\partial u_2}{\partial u_1} \\
+&=
+2u_2 + \exp{u_1}
+\end{aligned}
+$$
+}
+\end{frame}
+
 
 \begin{frame}[fragile]{Reverse Mode Conclusions}
 \begin{itemize}
