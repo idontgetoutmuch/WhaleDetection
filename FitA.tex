@@ -13,6 +13,8 @@
 }
 
 \usetheme{Warsaw}
+\setbeamertemplate{footline}{\insertframenumber/\inserttotalframenumber}
+
 \title[Automatic differentiation]{Automatic Differentiation\\A Criminally Underused Tool?}
 \author{Dominic Steinitz}
 \institute{Kingston University}
@@ -402,22 +404,25 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Reverse Mode Conclusions}
+\begin{frame}[fragile]{Reverse Mode Summary}
+
 \begin{itemize}
-\item
-Note that having worked from top to bottom (the forward sweep) in the
-graph to calculate the function itself, we have to work backwards from
-bottom to top (the backward sweep) to calculate the derivative.
-\item
-So provided we can translate our program into a data flow graph, we can
-apply this procedure to calculate the differential with the same
-complexity as the original program.
-\item
-The pictorial representation of an ANN is effectively the data flow
-graph of the cost function (without the final cost calculation itself)
-and its differential can be calculated as just being identical to
-backpropagation.
+\pause
+\item Calculate the function and the intermediate values working from
+  left to right (the forward sweep)
+\pause
+\item And calculate the one step derivatives of primitive the
+  primitive functions at the same time
+\pause
+\item Then calculate the required derivative working from right to
+  left (the backward sweep)
+\pause
+\item Same complexity
+\pause
+\item Pictorial representation of MLP is the data flow graph of the cost
+  function and reverse mode AD is identical to backpropagation
 \end{itemize}
+
 \end{frame}
 
 \subsection{Forward Mode}
@@ -685,52 +690,6 @@ Andrew Gelman's Blog
   \textcolor{blue}{http://en.wikipedia.org/wiki/Automatic\_differentiation}
 \item \textcolor{blue}{http://www.autodiff.org}
 \end{itemize}
-\end{frame}
-
-\begin{frame}[fragile]{Differentials}
-\uncover<1->{
-$$
-\mathrm{d}u_7     = \frac{\partial f_7}{\partial u_6} \mathrm{d} u_6 +
-                    \frac{\partial f_7}{\partial u_5} \mathrm{d} u_5 +
-                    \frac{\partial f_7}{\partial u_4} \mathrm{d} u_4 +
-                    \frac{\partial f_7}{\partial u_3} \mathrm{d} u_3 +
-                    \frac{\partial f_7}{\partial u_2} \mathrm{d} u_2 +
-                    \frac{\partial f_7}{\partial u_1} \mathrm{d} u_1
-$$
-}
-\uncover<2->{
-$$
-\mathrm{d}u_6     = \frac{\partial f_6}{\partial u_5} \mathrm{d} u_5 +
-                    \frac{\partial f_6}{\partial u_4} \mathrm{d} u_4 +
-                    \frac{\partial f_6}{\partial u_3} \mathrm{d} u_3 +
-                    \frac{\partial f_6}{\partial u_2} \mathrm{d} u_2 +
-                    \frac{\partial f_6}{\partial u_1} \mathrm{d} u_1
-$$
-}
-\uncover<3->{
-$$
-\begin{aligned}
-\ldots           &= \ldots \\
-\mathrm{d}u_2    &= \frac{\partial f_2}{\partial u_1} \mathrm{d} u_1
-\end{aligned}
-$$
-}
-\end{frame}
-
-\begin{frame}[fragile]{Tangents and Cotangents}
-  If you are worried by differentials, this is all well defined. For
-  example, suppose we have $f : \mathbb{R}^2 \rightarrow \mathbb{R}$
-  then derivative of $f$ at $a$, denoted $\mathrm{d}f_a$, is an
-  element of a vector space called the cotangent space and
-
-$$
-\mathrm{d}f_a = \bigg(\frac{\partial f}{\partial x}\bigg)_a\mathrm{d}x_a +
-                \bigg(\frac{\partial f}{\partial y}\bigg)_a\mathrm{d}y_a
-$$
-
-where $\mathrm{d}x_a, \mathrm{d}y_a$ is a basis for the cotangent
-space and $\big(\frac{\partial f}{\partial x}\big)_a,
-\big(\frac{\partial f}{\partial x}\big)_a$ are real numbers.
 \end{frame}
 
 \end{document}
