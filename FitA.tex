@@ -63,10 +63,6 @@
 \end{itemize}
 \end{frame}
 
-\framedgraphic{The Data for 0s}{diagrams/mnist_train0.jpg}
-
-\framedgraphic{The Data for 1s}{diagrams/mnist_train1.jpg}
-
 \subsection{A Solution}
 
 \framedgraphic{Perceptron}{diagrams/Fita1.png}
@@ -197,7 +193,6 @@ $$
 
 \begin{frame}[fragile]{Backpropagation}
 \begin{itemize}
-\pause
 \item Efficient method for finding the derivative for MLPs (1960's).
 \pause
 \item Complex but quite often appears in Machine Learning 101.
@@ -366,7 +361,7 @@ $$
 \begin{frame}[fragile]{Chain Rule Example: $u_2$}
 \uncover<1->{
 Now things become more interesting again as $u_7$ depends on $u_2$ via $u_4$
-and $u_3$: $u_7 = u_7(u_4(u_2), u_4(u_2))$
+and $u_3$: $u_7 = u_7(u_4(u_2), u_3(u_2))$
 }
 
 \uncover<2->{
@@ -433,6 +428,7 @@ $$
 An alternative method for automatic differentiation is called forward
 mode and has a simple implementation. Let us illustrate this using
 Haskell. The actual implementation is about 20 lines of code.
+\pause
 \item
 Let us define dual numbers
 
@@ -440,9 +436,11 @@ Let us define dual numbers
 data Dual = Dual Double Double
   deriving (Eq, Show)
 \end{lstlisting}
+\pause
 \item
 We can think of these pairs as first order polynomials in the
 indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
+(Galois theory)
 \end{itemize}
 \end{frame}
 
@@ -459,13 +457,13 @@ $$
 \sqrt{(x + \epsilon x')} &=
 \sqrt{x(1 + \epsilon\frac{x'}{x})} =
 \sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
-\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}} \\
-\ldots &= \ldots
+\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}
 \end{aligned}
 $$
 \end{frame}
 
 \begin{frame}[fragile]{Dual Numbers and The Chain Rule}
+\uncover<1->{
 Notice that these equations implicitly encode the chain rule. For
 example, we know, using the chain rule, that
 
@@ -474,16 +472,21 @@ $$
 \frac{1}{\sqrt x}\frac{1}{2}x^{-1/2} =
 \frac{1}{2x}
 $$
+}
 
+\uncover<2->{
 And using the example equations above we have
 
 $$
 \begin{aligned}
-\log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
-                              &= \log (\sqrt{x}) + \epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} \\
-                              &= \log (\sqrt{x}) + \epsilon x'\frac{1}{2x}
+\log(\sqrt {x + \epsilon x'}) &= \log (\sqrt{x} +
+\epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}) \\
+&= \log (\sqrt{x}) +
+\epsilon\frac{\frac{1}{2}\frac{x'}{\sqrt{x}}}{\sqrt{x}} = \log
+(\sqrt{x}) + \epsilon x'\frac{1}{2x}
 \end{aligned}
 $$
+}
 \end{frame}
 
 \begin{frame}[fragile]{Dual Numbers Example}
@@ -491,12 +494,14 @@ Notice that dual numbers carry around the calculation and the
 derivative of the calculation.
 
 \begin{itemize}
+\pause
 \item
 To actually evaluate $\log(\sqrt{x})$
 at a particular value, say 2, we plug in 2 for $x$ and 1 for $x'$
 $$
 \log (\sqrt{2 + \epsilon 1}) = \log(\sqrt{2}) + \epsilon\frac{1}{4}
 $$
+\pause
 \item
 Thus the derivative of $\log(\sqrt{x})$ at 2 is $1/4$.
 \end{itemize}
@@ -550,19 +555,18 @@ instance Floating Dual where
 
 
 \begin{frame}[fragile]{Example}
-That's all we need to do. Let us implement the function we considered
-earlier.
+That's all we need to do --- let's try it
 
 \begin{scriptsize}
 \begin{lstlisting}[language=Haskell]
-f = h . h where h x = x * x
+f = log . sqrt
 \end{lstlisting}
 \end{scriptsize}
 
 \begin{scriptsize}
 \begin{lstlisting}
 ghci> f (Dual 2 1)
-  Dual 16.0 32.0
+  Dual 0.3465735902799727 0.24999999999999997
 \end{lstlisting}
 \end{scriptsize}
 \end{frame}
