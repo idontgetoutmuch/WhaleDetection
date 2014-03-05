@@ -18,7 +18,7 @@
 \title[Automatic differentiation]{Automatic Differentiation\\A Criminally Underused Tool?}
 \author{Dominic Steinitz}
 \institute{Kingston University}
-\date{15 September 2013}
+\date{12 March 2013}
 \begin{document}
 
 \begin{frame}
@@ -90,15 +90,6 @@ $$
 For each weight, we find the derivative of the cost function wrt that
 weight and use that to step a small distance (the learning rate) in
 the direction which reduces the cost most quickly.
-}
-
-\uncover<2->{
-In symbols:
-$$
-w' = w - \gamma\nabla E(w)
-$$
-
-where $\gamma$ is the step length aka the learning rate.
 }
 \end{frame}
 
@@ -184,6 +175,7 @@ $$
 \begin{itemize}
 \item The mathematical function for an MLP could easily be more
   complicated.
+\pause
 \item To use a symbolic differentiation package (usually) requires
   some manipulation of the original program.
 \end{itemize}
@@ -447,19 +439,19 @@ indeterminate $\epsilon$, $x + \epsilon x'$ such that $\epsilon^2 = 0$
 \begin{frame}[fragile]{Dual Numbers}
 Thus, for example, we have
 
-$$
-\begin{aligned}
-(x + \epsilon x') + (y + \epsilon y') &= ((x + y) + \epsilon (x' + y')) \\
-(x + \epsilon x')(y + \epsilon y') &= xy + \epsilon (xy' + x'y) \\
-\log (x + \epsilon x') &=
-\log x (1 + \epsilon \frac {x'}{x}) =
-\log x + \epsilon\frac{x'}{x} \\
-\sqrt{(x + \epsilon x')} &=
-\sqrt{x(1 + \epsilon\frac{x'}{x})} =
-\sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) =
-\sqrt{x} + \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}
-\end{aligned}
-$$
+\begin{itemize}
+\pause
+\item $(x + \epsilon x') + (y + \epsilon y') = ((x + y) + \epsilon (x' + y'))$
+\pause
+\item $(x + \epsilon x')(y + \epsilon y') = xy + \epsilon (xy' + x'y)$
+\pause
+\item $\log (x + \epsilon x') = \log x (1 + \epsilon \frac {x'}{x}) =
+  \log x + \epsilon\frac{x'}{x}$
+\pause
+\item $\sqrt{(x + \epsilon x')} = \sqrt{x(1 + \epsilon\frac{x'}{x})} =
+  \sqrt{x}(1 + \epsilon\frac{1}{2}\frac{x'}{x}) = \sqrt{x} +
+  \epsilon\frac{1}{2}\frac{x'}{\sqrt{x}}$
+\end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{Dual Numbers and The Chain Rule}
@@ -566,7 +558,7 @@ f = log . sqrt
 \begin{scriptsize}
 \begin{lstlisting}
 ghci> f (Dual 2 1)
-  Dual 0.3465735902799727 0.24999999999999997
+  Dual 0.347 0.250
 \end{lstlisting}
 \end{scriptsize}
 \end{frame}
@@ -579,14 +571,11 @@ through the actual evaluation.
 
 $$
 \begin{aligned}
-f (\mathrm{Dual}\,2\,1) &\longrightarrow (\lambda z \rightarrow z
-\times z \cdot \lambda z \rightarrow z \times z) (\mathrm{Dual}\,2\,1) \\
-&\longrightarrow (\lambda z \rightarrow z
-\times z) (\mathrm{Dual}\,(2 \times 2)\,(2 \times 1 + 2 \times 1)) \\
-&\longrightarrow  (\lambda z \rightarrow z
-\times z) (\mathrm{Dual}\,4\,4)\\
-&\longrightarrow (\mathrm{Dual}\,(4 \times 4)\,(4 \times 4 + 4 \times 4)) \\
-&\longrightarrow (\mathrm{Dual}\,16\,32)\\
+f (\mathrm{Dual}\,2\,1) &\longrightarrow (\mathrm{log} \cdot \mathrm{sqrt}) (\mathrm{Dual}\,2\,1) \\
+&\longrightarrow \mathrm{log} \bigg(\mathrm{Dual}\,\sqrt{2}\,\frac{1}{2\sqrt{2}}\bigg) \\
+&\longrightarrow  \mathrm{log} (\mathrm{Dual}\,1.414\,0.354) \\
+&\longrightarrow \mathrm{Dual}\,\log{1.414}\,\frac{0.354}{1.414} \\
+&\longrightarrow \mathrm{Dual}\,0.347\,0.250\\
 \end{aligned}
 $$
 \end{frame}
@@ -594,9 +583,14 @@ $$
 \section{Application}
 
 \begin{frame}[fragile]{Linear Regression}
+\begin{itemize}
+\item
 $$
-L(\boldsymbol{x}, \boldsymbol{y}, m, c) = \frac{1}{2n}\sum_{i=1}^n (y - (mx + c))^2
+L(\boldsymbol{x}, \boldsymbol{y}, m, c) = \frac{1}{2n}\sum_{i=1}^n (y_i - (mx_i + c))^2
 $$
+
+\pause
+\item
 \begin{scriptsize}
 \begin{lstlisting}[language=Haskell]
 cost m c xs ys = (sum (zipWith errSq xs ys)) /
@@ -607,13 +601,22 @@ cost m c xs ys = (sum (zipWith errSq xs ys)) /
         z = y - (m * x + c)
 \end{lstlisting}
 \end{scriptsize}
+\end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{Linear Regression}
+\begin{itemize}
+\item
 \begin{scriptsize}
 \begin{lstlisting}[language=Haskell]
 g m c = cost m c xs ys
+\end{lstlisting}
+\end{scriptsize}
 
+\pause
+\item
+\begin{scriptsize}
+\begin{lstlisting}[language=Haskell]
 zs = (0.1, 0.1) : map f zs
   where
 
@@ -625,6 +628,7 @@ zs = (0.1, 0.1) : map f zs
         mDeriv = deriv (flip g (Dual c 0) (Dual m 1))
 \end{lstlisting}
 \end{scriptsize}
+\end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]{Linear Regression}
@@ -650,41 +654,58 @@ ghci> take 10 zs
 \begin{frame}[fragile]{Efficiency}
 Perhaps AD is underused because of efficiency?
 
+\uncover<1->{
 It seems that the Financial Services industry is aware that AD is {\em
   more} efficient than current practice. Order of magnitude
 improvements have been reported.
 \begin{itemize}
+\pause
 \item
 Smoking Adjoints: fast evaluation of Greeks in Monte Carlo Calculations
+\pause
 \item
 Adjoints and automatic (algorithmic) differentiation in computational finance
 \end{itemize}
+}
 
+\uncover<2->{
 Perhaps AD is slowly permeating into Machine Learning as well but
 there seem to be no easy to find benchmarks.
 
 \begin{itemize}
+\pause
 \item
 Good Morning, Economics Blog
+\pause
 \item
 Andrew Gelman's Blog
 \end{itemize}
+}
 \end{frame}
 
 \begin{frame}[fragile]{Tools}
+
+\uncover<1->{
   If it were only possible to implement automatic differentiation in
   Haskell then its applicability would be somewhat
   limited. Fortunately this is not the case and it can be used in many
   languages. In general, there are three different approaches:
+}
 
+\uncover<2->{
 \begin{itemize}
+\pause
 \item Operator overloading: available for Haskell and C++. See the
-  Haskell ad package and the C++ FADBAD approach using templates.
+  Haskell ad package and the C++ STAN and FADBAD approach using
+  templates.
+\pause
 \item Source to source translators: available for Fortran, C and other
   languages e.g., ADIFOR, TAPENADE and see the wikipedia entry for a
   more comprehensive list.
+\pause
 \item New languages with built-in AD primitives.
 \end{itemize}
+}
 \end{frame}
 
 \begin{frame}[fragile]{Resources}
