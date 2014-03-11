@@ -25,9 +25,6 @@
 \titlepage
 \end{frame}
 
-\section*{Outline}
-    \frame{\tableofcontents}
-
 \section{Introduction}
 
 \subsection{What This Talk is About}
@@ -80,7 +77,7 @@ To fit the model we need to find the weights which minimise the cost
 (aka loss) function.
 
 $$
-E(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) =
+L(\boldsymbol{w}; \boldsymbol{x}, \boldsymbol{y}) =
 \frac{1}{2}\sum_{i=1}^M(\hat{\boldsymbol{y}_i} - \boldsymbol{y}_i)^2
 $$
 \end{frame}
@@ -118,7 +115,7 @@ the direction which reduces the cost most quickly.
 \begin{frame}{Bumping}
 Could try bumping
 $$
-\frac{\partial E(\ldots, w, \ldots)}{\partial w} \approx \frac{E(\ldots, w + \epsilon, \ldots) - E(\ldots, w, \ldots)}{\epsilon}
+\frac{\partial L(\ldots, w, \ldots)}{\partial w} \approx \frac{L(\ldots, w + \epsilon, \ldots) - L(\ldots, w, \ldots)}{\epsilon}
 $$
 \begin{itemize}
 \item
@@ -221,22 +218,6 @@ We can write this function as a data flow graph...
 
 \framedgraphic{Data Flow Graph}{diagrams/Fita3.png}
 
-\begin{frame}[fragile]{Sequence of Functions}
-We can thus re-write our function as a sequence of simpler functions
-in which each function only depends on variables earlier in the
-sequence.
-
-$$
-\begin{aligned}
-u_7    &= f_7(u_6, u_5, u_4, u_3, u_2, u_1) \\
-u_6    &= f_6(u_5, u_4, u_3, u_2, u_1) \\
-\ldots &= \ldots \\
-u_2    &= f_2(u_1)
-\end{aligned}
-$$
-\end{frame}
-
-
 \begin{frame}[fragile]{The Chain Rule}
 \uncover<1->{
 Recall the {\color{brown}{chain rule}}: if $f(x) = g(h(x))$ and  $y =
@@ -283,6 +264,8 @@ $$
 }
 \end{frame}
 
+\framedgraphic{Chain Rule Example: $u_6$ and $u_5$}{diagrams/Fita3.png}
+
 \begin{frame}[fragile]{Chain Rule Example: $u_6$ and $u_5$}
 \uncover<1->{
 Since
@@ -297,11 +280,13 @@ Then
 $$
 \begin{aligned}
 \frac{\partial u_7}{\partial u_6} &= 1 \\
-\frac{\partial f_7}{\partial u_5} &= 1
+\frac{\partial u_7}{\partial u_5} &= 1
 \end{aligned}
 $$
 }
 \end{frame}
+
+\framedgraphic{Chain Rule Example: $u_4$}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Chain Rule Example: $u_4$}
 \uncover<1->{
@@ -325,6 +310,8 @@ $$
 }
 \end{frame}
 
+\framedgraphic{Chain Rule Example: $u_3$}{diagrams/Fita3.png}
+
 \begin{frame}[fragile]{Chain Rule Example: $u_3$}
 \uncover<1->{
 $u_7$ depends on $u_3$ only via $u_4$: $u_7 = u_7(u_4(u_3))$
@@ -341,14 +328,13 @@ $$
 }
 
 \uncover<3->{
-Since $u_4 = u_3 + u_2$ we have $\frac{\partial u_4}{\partial u_3} =
-1$ and thus
 $$
-\frac{\partial u_7}{\partial u_3} =
-\frac{\partial u_7}{\partial u_4}
+= \frac{\partial u_7}{\partial u_4}
 $$
 }
 \end{frame}
+
+\framedgraphic{Chain Rule Example: $u_2$}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Chain Rule Example: $u_2$}
 \uncover<1->{
@@ -371,6 +357,8 @@ $$
 $$
 }
 \end{frame}
+
+\framedgraphic{Chain Rule Example: $u_1$}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Chain Rule Example: $u_1$}
 \uncover<1->{
@@ -398,7 +386,7 @@ $$
 \item Calculate the function and the intermediate values working from
   left to right (the forward sweep)
 \pause
-\item And calculate the one step derivatives of primitive the
+\item And calculate the one step derivatives of the
   primitive functions at the same time
 \pause
 \item Then calculate the required derivative working from right to
@@ -406,7 +394,7 @@ $$
 \pause
 \item Same complexity
 \pause
-\item Pictorial representation of MLP is the data flow graph of the cost
+\item Pictorial representation of MLP is the data flow graph of its cost
   function and reverse mode AD is identical to backpropagation
 \end{itemize}
 
@@ -529,8 +517,14 @@ instance Fractional Dual where
 instance Floating Dual where
   pi = constD pi
   exp   (Dual x x') = Dual (exp x)   (x' * exp x)
+\end{lstlisting}
+\color{blue}
+\begin{lstlisting}[language=Haskell]
   log   (Dual x x') = Dual (log x)   (x' / x)
   sqrt  (Dual x x') = Dual (sqrt x)  (x' / (2 * sqrt x))
+\end{lstlisting}
+\color{black}
+\begin{lstlisting}[language=Haskell]
   sin   (Dual x x') = Dual (sin x)   (x' * cos x)
   cos   (Dual x x') = Dual (cos x)   (x' * (- sin x))
   sinh  (Dual x x') = Dual (sinh x)  (x' * cosh x)
@@ -654,25 +648,22 @@ ghci> take 10 zs
 \begin{frame}[fragile]{Efficiency}
 Perhaps AD is underused because of efficiency?
 
-\uncover<1->{
+\begin{itemize}
+\pause
+\item
 It seems that the Financial Services industry is aware that AD is {\em
   more} efficient than current practice. Order of magnitude
 improvements have been reported.
-\begin{itemize}
 \pause
 \item
 Smoking Adjoints: fast evaluation of Greeks in Monte Carlo Calculations
 \pause
 \item
 Adjoints and automatic (algorithmic) differentiation in computational finance
-\end{itemize}
-}
-
-\uncover<2->{
+\pause
+\item
 Perhaps AD is slowly permeating into Machine Learning as well but
 there seem to be no easy to find benchmarks.
-
-\begin{itemize}
 \pause
 \item
 Good Morning, Economics Blog
@@ -680,32 +671,6 @@ Good Morning, Economics Blog
 \item
 Andrew Gelman's Blog
 \end{itemize}
-}
-\end{frame}
-
-\begin{frame}[fragile]{Tools}
-
-\uncover<1->{
-  If it were only possible to implement automatic differentiation in
-  Haskell then its applicability would be somewhat
-  limited. Fortunately this is not the case and it can be used in many
-  languages. In general, there are three different approaches:
-}
-
-\uncover<2->{
-\begin{itemize}
-\pause
-\item Operator overloading: available for Haskell and C++. See the
-  Haskell ad package and the C++ STAN and FADBAD approach using
-  templates.
-\pause
-\item Source to source translators: available for Fortran, C and other
-  languages e.g., ADIFOR, TAPENADE and see the wikipedia entry for a
-  more comprehensive list.
-\pause
-\item New languages with built-in AD primitives.
-\end{itemize}
-}
 \end{frame}
 
 \begin{frame}[fragile]{Resources}
@@ -714,6 +679,8 @@ Andrew Gelman's Blog
 \item
   \textcolor{blue}{http://en.wikipedia.org/wiki/Automatic\_differentiation}
 \item \textcolor{blue}{http://www.autodiff.org}
+\item \textcolor{blue}{http://hackage.haskell.org/package/ad}
+\item \textcolor{blue}{http://mc-stan.org}
 \end{itemize}
 \end{frame}
 
