@@ -279,29 +279,90 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example: $u_6$ and $u_5$}
+\begin{frame}[fragile]{Chain Rule Example I}
 \uncover<1->{
 Since
 $$
-\begin{aligned}
-u_7 = u_6 + u_5
-\end{aligned}
+f_7 : \mathbb{R}^2 \longrightarrow \mathbb{R}
+$$
+$$
+f_7(v_6,v_5) = v_6 + v_5
 $$
 }
 \uncover<2->{
-Then
+Then we have a $1 \times 2$ matrix as the derivative.
 $$
-\begin{aligned}
-\frac{\partial u_7}{\partial u_6} &= 1 \\
-\frac{\partial u_7}{\partial u_5} &= 1
-\end{aligned}
+\left( \begin{array}{cc}
+\frac{\partial f_7}{\partial x} & \frac{\partial f_7}{\partial
+  y} \end{array} \right)\bigg|_{x=u_6, y=u_5}
+=
+\left( \begin{array}{cc}
+1 & 1 \end{array} \right)
 $$
 }
 \end{frame}
 
-\framedgraphic{Chain Rule Example: $u_4$}{diagrams/Fita3.png}
+\begin{frame}[fragile]{Chain Rule Example II}
+\uncover<1->{
+Since
+$$
+\langle f_6, f_5\rangle : \mathbb{R} \longrightarrow
+\mathbb{R}^2
+$$
+}
+\uncover<2->{
+We have a $2 \times 1$ matrix:
+$$
+\left( \begin{array}{c}
+\frac{\partial f_6}{\partial x} \\
+\frac{\partial f_5}{\partial x} \end{array} \right)\bigg|_{x=u_4}
+=
+\left( \begin{array}{c}
+\exp{u_4} \\
+\cos{u_4} \end{array} \right)
+$$
+}
+\end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example: $u_4$}
+\begin{frame}[fragile]{Chain Rule Example III}
+\uncover<1->{
+Since
+$$
+\begin{aligned}
+\mathbb{R}   \overset{\langle f_6, f_5\rangle}{\longrightarrow}
+\mathbb{R}^2 \overset{f_7}{\longrightarrow}
+\mathbb{R} \\
+\end{aligned}
+$$
+}
+\uncover<2->{
+We can apply the chain rule
+$$
+D(f_7 \circ \langle f_6, f_5\rangle)(u_4) = Df_7(f_6(u_4), f_5(u_4))
+\circ D\langle f_6, f_5\rangle(u_4)
+$$
+}
+\uncover<3->{
+$$
+\left( \begin{array}{cc}
+\frac{\partial f_7}{\partial x} & \frac{\partial f_7}{\partial y} \end{array} \right)
+\left( \begin{array}{c}
+\frac{\partial f_6}{\partial x} \\
+\frac{\partial f_5}{\partial x} \end{array} \right)
+=
+\left( \begin{array}{cc}
+1 & 1 \end{array} \right)
+\left( \begin{array}{c}
+\exp{u_4} \\
+\cos{u_4} \end{array} \right)
+=
+\exp{u_4} + \cos{u_4}
+$$
+}
+\end{frame}
+
+
+\begin{frame}[fragile]{Chain Rule Example II}
 \uncover<1->{
 Now things become more interesting as $u_7$ depends on $u_4$ via $u_6$
 and $u_5$: $u_7 = u_7(u_6(u_4), u_5(u_4))$
@@ -323,7 +384,6 @@ $$
 }
 \end{frame}
 
-\framedgraphic{Chain Rule Example: $u_3$}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Chain Rule Example: $u_3$}
 \uncover<1->{
@@ -347,8 +407,6 @@ $$
 }
 \end{frame}
 
-\framedgraphic{Chain Rule Example: $u_2$}{diagrams/Fita3.png}
-
 \begin{frame}[fragile]{Chain Rule Example: $u_2$}
 \uncover<1->{
 Now things become more interesting again as $u_7$ depends on $u_2$ via $u_4$
@@ -370,8 +428,6 @@ $$
 $$
 }
 \end{frame}
-
-\framedgraphic{Chain Rule Example: $u_1$}{diagrams/Fita3.png}
 
 \begin{frame}[fragile]{Chain Rule Example: $u_1$}
 \uncover<1->{
