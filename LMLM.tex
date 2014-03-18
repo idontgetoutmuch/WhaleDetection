@@ -12,6 +12,9 @@
     \end{frame}
 }
 
+\newcounter{chainRuleExample}
+\newcommand\crNumber{\stepcounter{chainRuleExample}\roman{chainRuleExample}}
+
 \usetheme{Warsaw}
 \setbeamertemplate{footline}{\insertframenumber/\inserttotalframenumber}
 
@@ -279,7 +282,7 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example I}
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
 Since
 $$
@@ -294,7 +297,7 @@ Then we have a $1 \times 2$ matrix as the derivative.
 $$
 \left( \begin{array}{cc}
 \frac{\partial f_7}{\partial x} & \frac{\partial f_7}{\partial
-  y} \end{array} \right)\bigg|_{x=u_6, y=u_5}
+  y} \end{array} \right)\bigg|_{x=v_6, y=v_5}
 =
 \left( \begin{array}{cc}
 1 & 1 \end{array} \right)
@@ -302,12 +305,15 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example II}
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
 Since
 $$
 \langle f_6, f_5\rangle : \mathbb{R} \longrightarrow
 \mathbb{R}^2
+$$
+$$
+\langle f_6, f_5\rangle(v_4) = (\exp{v_4}, \sin{v_4})
 $$
 }
 \uncover<2->{
@@ -315,16 +321,16 @@ We have a $2 \times 1$ matrix:
 $$
 \left( \begin{array}{c}
 \frac{\partial f_6}{\partial x} \\
-\frac{\partial f_5}{\partial x} \end{array} \right)\bigg|_{x=u_4}
+\frac{\partial f_5}{\partial x} \end{array} \right)\bigg|_{x=v_4}
 =
 \left( \begin{array}{c}
-\exp{u_4} \\
-\cos{u_4} \end{array} \right)
+\exp{v_4} \\
+\cos{v_4} \end{array} \right)
 $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example III}
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
 Since
 $$
@@ -336,10 +342,10 @@ $$
 $$
 }
 \uncover<2->{
-We can apply the chain rule
+We can apply the {\color{brown}{chain rule}}
 $$
-D(f_7 \circ \langle f_6, f_5\rangle)(u_4) = Df_7(f_6(u_4), f_5(u_4))
-\circ D\langle f_6, f_5\rangle(u_4)
+D(f_7 \circ \langle f_6, f_5\rangle)(v_4) = Df_7(f_6(v_4), f_5(v_4))
+\circ D\langle f_6, f_5\rangle(v_4)
 $$
 }
 \uncover<3->{
@@ -353,97 +359,154 @@ $$
 \left( \begin{array}{cc}
 1 & 1 \end{array} \right)
 \left( \begin{array}{c}
-\exp{u_4} \\
-\cos{u_4} \end{array} \right)
+\exp{v_4} \\
+\cos{v_4} \end{array} \right)
 =
-\exp{u_4} + \cos{u_4}
+\exp{v_4} + \cos{v_4}
 $$
 }
 \end{frame}
 
-
-\begin{frame}[fragile]{Chain Rule Example II}
+\begin{frame}[fragile]{Chain Rule Example}
 \uncover<1->{
-Now things become more interesting as $u_7$ depends on $u_4$ via $u_6$
-and $u_5$: $u_7 = u_7(u_6(u_4), u_5(u_4))$
+Since
+$$
+f_4 : \mathbb{R}^2 \longrightarrow
+\mathbb{R}
+$$
+$$
+f_4(v_3,v_2) = v_3 + v_2
+$$
 }
-
 \uncover<2->{
-By the multivariate {\color{brown}{chain rule}}
+Then we have a $1 \times 2$ matrix as the derivative.
 $$
-\frac{\partial u_7}{\partial u_4} =
- \frac{\partial u_7}{\partial u_6}\frac{\partial u_6}{\partial u_4} +
- \frac{\partial u_7}{\partial u_5}\frac{\partial u_5}{\partial u_4}
-$$
-}
-\uncover<3->{
-$$
-= \frac{\partial u_7}{\partial u_6}\exp{u_4} +
-  \frac{\partial u_7}{\partial u_5}\cos{u_4}
+\left( \begin{array}{cc}
+\frac{\partial f_4}{\partial x} & \frac{\partial f_4}{\partial
+  y} \end{array} \right)\bigg|_{x=v_3, y=v_2}
+=
+\left( \begin{array}{cc}
+1 & 1 \end{array} \right)
 $$
 }
 \end{frame}
 
-
-\begin{frame}[fragile]{Chain Rule Example: $u_3$}
+\begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6,
+    f_5\rangle \circ f_4$}
 \uncover<1->{
-$u_7$ depends on $u_3$ only via $u_4$: $u_7 = u_7(u_4(u_3))$
-}
-
-\uncover<2->{
-By the {\color{brown}{chain rule}}
+Since
 $$
 \begin{aligned}
- \frac{\partial u_7}{\partial u_3} &=
- \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_3} \\
+\mathbb{R}^2 \overset{f_4}{\longrightarrow}
+\mathbb{R}
+\xrightarrow{f_7 \circ \langle f_6,
+  f_5\rangle}
+\mathbb{R} \\
 \end{aligned}
 $$
 }
-
+\uncover<2->{
+We can apply the {\color{brown}{chain rule}}
+$$
+D((f_7 \circ \langle f_6, f_5\rangle) \circ f_4)(v_3,v_2) = D(f_7
+\circ \langle f_6, f_5\rangle)(f_4(v_3,v_2))
+\circ Df_4(v_3,v_2)
+$$
+}
 \uncover<3->{
 $$
-= \frac{\partial u_7}{\partial u_4}
+\begin{aligned}
+\left( \begin{array}{c}
+\frac{\partial (f_7 \circ \langle f_6, f_5\rangle)}{\partial
+  x} \end{array} \right)
+\left( \begin{array}{cc}
+\frac{\partial f_4}{\partial x} & \frac{\partial f_4}{\partial
+  y} \end{array} \right)
+&=
+\left( \begin{array}{c}
+\exp{v_4} + \cos{v_4}
+\end{array} \right)
+\left( \begin{array}{cc}
+1 & 1 \end{array} \right) \\
+&=
+\left( \begin{array}{cc}
+\exp{v_4} + \cos{v_4} & \exp{v_4} + \cos{v_4} \end{array} \right)
+\end{aligned}
 $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example: $u_2$}
+\begin{frame}[fragile]{Chain Rule Example $\langle f_2, f_3\rangle$}
 \uncover<1->{
-Now things become more interesting again as $u_7$ depends on $u_2$ via $u_4$
-and $u_3$: $u_7 = u_7(u_4(u_2), u_3(u_2))$
+Since
+$$
+\langle f_3, f_2\rangle : \mathbb{R} \longrightarrow
+\mathbb{R}^2
+$$
+$$
+\langle f_3, f_2\rangle(v_1) = (v_1^2, v_1)
+$$
 }
-
 \uncover<2->{
-By the {\color{brown}{chain rule}}
+Then we have a $2 \times 1$ matrix as the derivative.
 $$
-\frac{\partial u_7}{\partial u_2} =
- \frac{\partial u_7}{\partial u_4}\frac{\partial u_4}{\partial u_2} +
- \frac{\partial u_7}{\partial u_3}\frac{\partial u_3}{\partial u_2}
-$$
-}
-\uncover<3->{
-$$
-= \frac{\partial u_7}{\partial u_4} +
-  \frac{\partial u_7}{\partial u_3}2u_2
+\left( \begin{array}{c}
+\frac{\partial f_3}{\partial x} \\
+\frac{\partial f_2}{\partial x}
+\end{array} \right)\bigg|_{x=v_1}
+=
+\left( \begin{array}{c}
+2v_1 \\
+1 \end{array} \right)
 $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example: $u_1$}
+\begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6,
+    f_5\rangle \circ f_4 \circ \langle f_3, f_2\rangle$}
 \uncover<1->{
-Finally, $u_7$ depends on $u_1$ via $u_2$: $u_7 = u_7(u_2(u_1))$
-}
-
-\uncover<2->{
-By the {\color{brown}{chain rule}}
+Since
 $$
-\frac{\partial u_7}{\partial u_1} =
-\frac{\partial u_7}{\partial u_2}\frac{\partial u_2}{\partial u_1}
+\begin{aligned}
+\mathbb{R} \xrightarrow{\langle f_3, f_2\rangle}
+\mathbb{R}^2
+\xrightarrow{f_7 \circ \langle f_6,
+  f_5\rangle \circ f_4}
+\mathbb{R} \\
+\end{aligned}
+$$
+}
+\uncover<2->{
+We can apply the {\color{brown}{chain rule}}
+$$
+\begin{aligned}
+& D((f_7 \circ \langle f_6, f_5\rangle \circ f_4) \circ \langle
+f_3,f_2\rangle)(v_1) = \\
+& D(f_7 \circ \langle f_6, f_5\rangle \circ f_4)(f_3(v_1),f_2(v_1))
+\circ D\langle f_3, f_2\rangle(v_1)
+\end{aligned}
 $$
 }
 \uncover<3->{
 $$
-= \frac{\partial u_7}{\partial u_2}\exp{u_2}
+\begin{aligned}
+& \left( \begin{array}{cc}
+\frac{\partial (f_7 \circ \langle f_6, f_5\rangle \circ f_4)}{\partial
+  x} & \frac{(\partial f_7 \circ \langle f_6, f_5\rangle \circ f_4)}{\partial
+  y} \end{array} \right)
+\left( \begin{array}{c}
+\frac{\partial f_3}{\partial x} \\
+\frac{\partial f_2}{\partial x}
+\end{array} \right) = \\
+& \left( \begin{array}{cc}
+\exp{v_4} + \cos{v_4} &
+\exp{v_4} + \cos{v_4}
+\end{array} \right)
+\left( \begin{array}{c}
+2v_1 \\ 1 \end{array} \right) = \\
+&
+2v_1(\exp{v_4} + \cos{v_4}) + (\exp{v_4} + \cos{v_4})
+\end{aligned}
 $$
 }
 \end{frame}
