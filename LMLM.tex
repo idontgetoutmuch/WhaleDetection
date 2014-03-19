@@ -35,12 +35,16 @@
 \begin{frame}{What This Talk Is About}
 
   \begin{itemize}
+    \pause
   \item Artificial Neural Networks (ANNs) are a well-established
     Machine Learning (ML) technique.
+    \pause
   \item Traditionally, training (aka fitting) ANNs is done using a
     technique called backpropogation.
+    \pause
   \item It turns out that this is just a specialised version of
     Reverse Automatic Differentiation (RAD) and steepest descent.
+    \pause
   \item This talk explains the theory behind RAD and develops an
     implementation in Haskell of Forward Automatic Differentiation
     (FAD) with a brief application to another ML technique:
@@ -261,8 +265,21 @@ $$
 \end{frame}
 
 \begin{frame}[fragile]{The Chain Rule}
+Recall the {\color{brown}{chain rule}}
 \uncover<1->{
-Recall the {\color{brown}{chain rule}}. If
+$$
+\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x} =
+\frac{\mathrm{d} g}{\mathrm{d} y}\frac{\mathrm{d} f}{\mathrm{d} x}
+$$
+}
+\uncover<2->{
+Alternatively
+$$
+(g \circ f)'(a) = g'(f(a))f'(a)
+$$
+}
+\uncover<3->{
+More generally, if
 $$
 \mathbb{R}^m \overset{f}{\longrightarrow}
 \mathbb{R}^n \overset{g}{\longrightarrow}
@@ -273,18 +290,10 @@ $$
 D(g \circ f)(a) = Dg(f(a)) \circ Df(a)
 $$
 }
-\uncover<2->{
-If $m = n = p = 1$ then customary to write
-$$
-\frac{\mathrm{d} (g \circ f)}{\mathrm{d} x} =
-\frac{\mathrm{d} g}{\mathrm{d} y}\frac{\mathrm{d} f}{\mathrm{d} x}
-$$
-}
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example}
+\begin{frame}[fragile]{Chain Rule Example $f_7$}
 \uncover<1->{
-Since
 $$
 f_7 : \mathbb{R}^2 \longrightarrow \mathbb{R}
 $$
@@ -305,9 +314,8 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example}
+\begin{frame}[fragile]{Chain Rule Example $\langle f_6, f_5\rangle$}
 \uncover<1->{
-Since
 $$
 \langle f_6, f_5\rangle : \mathbb{R} \longrightarrow
 \mathbb{R}^2
@@ -330,9 +338,8 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example}
+\begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6, f_5\rangle$}
 \uncover<1->{
-Since
 $$
 \begin{aligned}
 \mathbb{R}   \overset{\langle f_6, f_5\rangle}{\longrightarrow}
@@ -367,9 +374,8 @@ $$
 }
 \end{frame}
 
-\begin{frame}[fragile]{Chain Rule Example}
+\begin{frame}[fragile]{Chain Rule Example $f_4$}
 \uncover<1->{
-Since
 $$
 f_4 : \mathbb{R}^2 \longrightarrow
 \mathbb{R}
@@ -394,7 +400,6 @@ $$
 \begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6,
     f_5\rangle \circ f_4$}
 \uncover<1->{
-Since
 $$
 \begin{aligned}
 \mathbb{R}^2 \overset{f_4}{\longrightarrow}
@@ -408,7 +413,7 @@ $$
 \uncover<2->{
 We can apply the {\color{brown}{chain rule}}
 $$
-D((f_7 \circ \langle f_6, f_5\rangle) \circ f_4)(v_3,v_2) = D(f_7
+D({\color{blue}{f_7 \circ \langle f_6, f_5\rangle}} \circ f_4)(v_3,v_2) = D(f_7
 \circ \langle f_6, f_5\rangle)(f_4(v_3,v_2))
 \circ Df_4(v_3,v_2)
 $$
@@ -438,7 +443,6 @@ $$
 
 \begin{frame}[fragile]{Chain Rule Example $\langle f_2, f_3\rangle$}
 \uncover<1->{
-Since
 $$
 \langle f_3, f_2\rangle : \mathbb{R} \longrightarrow
 \mathbb{R}^2
@@ -465,7 +469,6 @@ $$
 \begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6,
     f_5\rangle \circ f_4 \circ \langle f_3, f_2\rangle$}
 \uncover<1->{
-Since
 $$
 \begin{aligned}
 \mathbb{R} \xrightarrow{\langle f_3, f_2\rangle}
@@ -480,7 +483,7 @@ $$
 We can apply the {\color{brown}{chain rule}}
 $$
 \begin{aligned}
-& D((f_7 \circ \langle f_6, f_5\rangle \circ f_4) \circ \langle
+  & D({\color{blue}{f_7 \circ \langle f_6, f_5\rangle \circ f_4}} \circ \langle
 f_3,f_2\rangle)(v_1) = \\
 & D(f_7 \circ \langle f_6, f_5\rangle \circ f_4)(f_3(v_1),f_2(v_1))
 \circ D\langle f_3, f_2\rangle(v_1)
@@ -492,7 +495,7 @@ $$
 \begin{aligned}
 & \left( \begin{array}{cc}
 \frac{\partial (f_7 \circ \langle f_6, f_5\rangle \circ f_4)}{\partial
-  x} & \frac{(\partial f_7 \circ \langle f_6, f_5\rangle \circ f_4)}{\partial
+  x} & \frac{\partial (f_7 \circ \langle f_6, f_5\rangle \circ f_4)}{\partial
   y} \end{array} \right)
 \left( \begin{array}{c}
 \frac{\partial f_3}{\partial x} \\
@@ -506,6 +509,66 @@ $$
 2v_1 \\ 1 \end{array} \right) = \\
 &
 2v_1(\exp{v_4} + \cos{v_4}) + (\exp{v_4} + \cos{v_4})
+\end{aligned}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example $f_1$}
+\uncover<1->{
+$$
+f_1 : \mathbb{R} \longrightarrow
+\mathbb{R}
+$$
+$$
+f_1(v_0) = \exp{v_0}
+$$
+}
+\uncover<2->{
+Then we have a $1 \times 1$ matrix or scalar as the derivative.
+$$
+\frac{\partial f_1}{\partial x}\bigg|_{x=v_0}
+=
+\exp{v_0}
+$$
+}
+\end{frame}
+
+\begin{frame}[fragile]{Chain Rule Example $f_7 \circ \langle f_6,
+    f_5\rangle \circ f_4 \circ \langle f_3, f_2\rangle \circ f_1$}
+\uncover<1->{
+$$
+\begin{aligned}
+\mathbb{R} \overset{f_1}{\longrightarrow}
+\mathbb{R}
+\xrightarrow{f_7 \circ \langle f_6,
+  f_5\rangle \circ f_4 \circ \langle f_3, f_2\rangle}
+\mathbb{R} \\
+\end{aligned}
+$$
+}
+\uncover<2->{
+We can apply the {\color{brown}{chain rule}}
+$$
+\begin{aligned}
+& D({\color{blue}{f_7 \circ \langle f_6, f_5\rangle \circ f_4 \circ \langle
+f_3,f_2\rangle}} \circ f_1)(v_0) = \\
+& D(f_7
+\circ \langle f_6, f_5\rangle \circ f_4 \circ \langle f_3,f_2\rangle)(f_1(v_0))
+\circ Df_1(v_0)
+\end{aligned}
+$$
+}
+\uncover<3->{
+$$
+\begin{aligned}
+&
+\frac{\partial (f_7 \circ \langle f_6, f_5\rangle \circ f_4 \circ
+  \langle f_3, f_2\rangle)}{\partial
+  x}
+\frac{\partial f_1}{\partial x} = \\
+&
+(2v_1(\exp{v_4} + \cos{v_4}) + (\exp{v_4} + \cos{v_4}))\exp{v_0}
 \end{aligned}
 $$
 }
@@ -533,10 +596,6 @@ $$
 \end{frame}
 
 \subsection{Forward Mode}
-
-\begin{frame}[fragile]{Where's the Fun?}
-What has this got to do with functional programming?
-\end{frame}
 
 \begin{frame}[fragile]{Dual Numbers}
 \begin{itemize}
@@ -817,7 +876,7 @@ Andrew Gelman's Blog
 \item \textcolor{blue}{http://www.autodiff.org}
 \item \textcolor{blue}{http://hackage.haskell.org/package/ad}
 \item \textcolor{blue}{http://mc-stan.org}
-\item \textcolor{blue}{The Monad.Reader Issue 21}
+\item \textcolor{blue}{http://deeplearning.net/software/theano}
 \end{itemize}
 \end{frame}
 
